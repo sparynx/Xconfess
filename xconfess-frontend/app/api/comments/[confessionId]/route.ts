@@ -1,3 +1,4 @@
+import { buildProxyErrorResponse, internalProxyErrorResponse } from "@/app/lib/utils/proxyError";
 import { getApiBaseUrl } from "@/app/lib/config";
 
 const BASE_API_URL = getApiBaseUrl();
@@ -84,22 +85,11 @@ export async function POST(
         });
       }
 
-      const err = await response.json().catch(() => ({}));
+      const err = await response.json().catch(() => ({} as { message?: string }));
       if (response.status === 401) {
-        return new Response(
-          JSON.stringify({ message: "Please sign in to comment" }),
-          { status: 401, headers: { "Content-Type": "application/json" } },
-        );
+        return buildProxyErrorResponse("Please sign in to comment", 401, { route: "POST /api/comments/[confessionId]" });
       }
-      return new Response(
-        JSON.stringify({
-          message: err.message || "Failed to post comment",
-        }),
-        {
-          status: response.status,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+      return buildProxyErrorResponse(err.message || "Failed to post comment", response.status, { route: "POST /api/comments/[confessionId]" });
     }
 
     const data = await response.json();
@@ -147,10 +137,6 @@ export async function POST(
       });
     }
 
-    console.error("Error posting comment:", error);
-    return new Response(JSON.stringify({ message: "Internal server error" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return internalProxyErrorResponse({ route: "POST /api/comments/[confessionId]" }, error);
   }
 }

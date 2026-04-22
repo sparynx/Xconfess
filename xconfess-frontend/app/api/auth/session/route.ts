@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getApiBaseUrl } from "@/app/lib/config";
+import { logProxyError } from "@/app/lib/utils/proxyError";
 
 const API_URL = getApiBaseUrl();
 const SESSION_COOKIE_NAME = "xconfess_session";
@@ -46,7 +47,8 @@ export async function POST(request: Request) {
         });
 
         return NextResponse.json({ user: data.user });
-    } catch {
+    } catch (error) {
+        logProxyError("Internal error", { route: "POST /api/auth/session" }, error);
         return NextResponse.json(
             { message: "An unexpected error occurred during login" },
             { status: 500 }
@@ -77,7 +79,8 @@ export async function GET() {
 
         const user = await response.json();
         return NextResponse.json({ authenticated: true, user });
-    } catch {
+    } catch (error) {
+        logProxyError("Internal error", { route: "GET /api/auth/session" }, error);
         return NextResponse.json({ authenticated: false }, { status: 500 });
     }
 }

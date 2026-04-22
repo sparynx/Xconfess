@@ -1,3 +1,5 @@
+import { logProxyError } from "@/app/lib/utils/proxyError";
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -89,16 +91,16 @@ export async function GET(request: Request) {
 
     return new Response(JSON.stringify(analytics), {
       status: 200,
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=900' // 15 minutes cache
       }
     });
   } catch (error) {
-    console.error('Error fetching analytics:', error);
-    return new Response(
-      JSON.stringify({ error: 'Failed to fetch analytics' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    logProxyError("Error computing trending data", { route: "GET /api/trending" }, error);
+    return new Response(JSON.stringify({ error: "Failed to fetch analytics" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }

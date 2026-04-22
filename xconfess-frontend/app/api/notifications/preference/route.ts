@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { backendHttpErrorResponse, internalProxyErrorResponse } from "@/app/lib/utils/proxyError";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,17 +15,17 @@ export async function GET(request: NextRequest) {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to fetch preferences");
+      const errData = await response.json().catch(() => ({} as { error?: string; message?: string }));
+      const message = errData.message ?? errData.error ?? "Failed to fetch preferences";
+      return backendHttpErrorResponse(message, response.status, "Failed to fetch preferences", {
+        route: "GET /api/notifications/preference",
+      });
     }
 
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching preferences:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch preferences" },
-      { status: 500 }
-    );
+    return internalProxyErrorResponse({ route: "GET /api/notifications/preference" }, error);
   }
 }
 
@@ -46,16 +47,16 @@ export async function PUT(request: NextRequest) {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to save preferences");
+      const errData = await response.json().catch(() => ({} as { error?: string; message?: string }));
+      const message = errData.message ?? errData.error ?? "Failed to save preferences";
+      return backendHttpErrorResponse(message, response.status, "Failed to save preferences", {
+        route: "PUT /api/notifications/preference",
+      });
     }
 
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error saving preferences:", error);
-    return NextResponse.json(
-      { error: "Failed to save preferences" },
-      { status: 500 }
-    );
+    return internalProxyErrorResponse({ route: "PUT /api/notifications/preference" }, error);
   }
 }

@@ -1,21 +1,16 @@
 import { normalizeConfession } from "../../lib/utils/normalizeConfession";
+import {
+  misconfiguredBackendResponse,
+  backendHttpErrorResponse,
+  backendUnreachableResponse,
+  internalProxyErrorResponse,
+} from "@/app/lib/utils/proxyError";
 
 const BASE_API_URL = process.env.BACKEND_API_URL;
 
 export async function POST(request: Request) {
   // Fail fast if backend URL is not configured
-  if (!BASE_API_URL) {
-    return new Response(
-      JSON.stringify({
-        message:
-          "Server misconfiguration: BACKEND_API_URL is not set. Contact the system administrator.",
-      }),
-      {
-        status: 503,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
-  }
+  if (!BASE_API_URL) return misconfiguredBackendResponse();
 
   try {
     const body = await request.json();
@@ -56,19 +51,12 @@ export async function POST(request: Request) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(`[POST /confessions] Backend error: ${response.status} (CID: ${correlationId})`, errorData);
-        return new Response(
-          JSON.stringify({
-            message:
-              errorData.message ||
-              `Failed to create confession: ${response.statusText}`,
-            correlationId,
-          }),
-          {
-            status: response.status,
-            headers: { "Content-Type": "application/json" },
-          },
+        const errorData = await response.json().catch(() => ({} as { message?: string }));
+        return backendHttpErrorResponse(
+          errorData.message,
+          response.status,
+          `Failed to create confession: ${response.statusText}`,
+          { route: "POST /api/confessions", correlationId },
         );
       }
 
@@ -79,51 +67,18 @@ export async function POST(request: Request) {
         status: 201,
         headers: { "Content-Type": "application/json" },
       });
-    } catch (fetchError: any) {
-      console.error(`[POST /confessions] Failed to reach backend (CID: ${correlationId}):`, fetchError);
-      return new Response(
-        JSON.stringify({
-          message: "Backend service unavailable. Please try again later.",
-          correlationId,
-        }),
-        {
-          status: 503,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+    } catch (fetchError) {
+      return backendUnreachableResponse({ route: "POST /api/confessions", correlationId }, fetchError);
     }
   } catch (error) {
     const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
-    console.error(`[POST /confessions] Internal error (CID: ${correlationId}):`, error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Internal server error";
-    return new Response(
-      JSON.stringify({
-        message: errorMessage,
-        correlationId,
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return internalProxyErrorResponse({ route: "POST /api/confessions", correlationId }, error);
   }
 }
 
 export async function GET(request: Request) {
   // Fail fast if backend URL is not configured
-  if (!BASE_API_URL) {
-    return new Response(
-      JSON.stringify({
-        message:
-          "Server misconfiguration: BACKEND_API_URL is not set. Contact the system administrator.",
-      }),
-      {
-        status: 503,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
-  }
+  if (!BASE_API_URL) return misconfiguredBackendResponse();
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1") || 1);
@@ -158,18 +113,11 @@ export async function GET(request: Request) {
     });
 
     if (!response.ok) {
-      console.error(
-        `[GET /confessions] Backend error: ${response.status} (CID: ${correlationId})`,
-      );
-      return new Response(
-        JSON.stringify({
-          message: `Failed to fetch confessions: ${response.statusText}`,
-          correlationId,
-        }),
-        {
-          status: response.status,
-          headers: { "Content-Type": "application/json" },
-        },
+      return backendHttpErrorResponse(
+        undefined,
+        response.status,
+        `Failed to fetch confessions: ${response.statusText}`,
+        { route: "GET /api/confessions", correlationId },
       );
     }
 
@@ -201,17 +149,6 @@ export async function GET(request: Request) {
       },
     );
   } catch (error) {
-    const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
-    console.error(`[GET /confessions] Internal error (CID: ${correlationId}):`, error);
-    return new Response(
-      JSON.stringify({
-        message: "Backend service unavailable. Please try again later.",
-        correlationId,
-      }),
-      {
-        status: 502,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return backendUnreachableResponse({ route: "GET /api/confessions", correlationId }, error);
   }
 }

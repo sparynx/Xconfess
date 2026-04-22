@@ -1,17 +1,9 @@
+import { misconfiguredBackendResponse, internalProxyErrorResponse } from "@/app/lib/utils/proxyError";
+
 const BASE_API_URL = process.env.BACKEND_API_URL;
 
 export async function GET(request: Request) {
-  if (!BASE_API_URL) {
-    return new Response(
-      JSON.stringify({
-        message: "Server misconfiguration: BACKEND_API_URL is not set.",
-      }),
-      {
-        status: 503,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
-  }
+  if (!BASE_API_URL) return misconfiguredBackendResponse();
 
   try {
     const backendUrl = `${BASE_API_URL}/users/profile`;
@@ -40,29 +32,12 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error("Error proxying to backend:", error);
-    return new Response(
-      JSON.stringify({ message: "Internal server error" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return internalProxyErrorResponse({ route: "GET /api/users/profile" }, error);
   }
 }
 
 export async function PATCH(request: Request) {
-  if (!BASE_API_URL) {
-    return new Response(
-      JSON.stringify({
-        message: "Server misconfiguration: BACKEND_API_URL is not set.",
-      }),
-      {
-        status: 503,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
-  }
+  if (!BASE_API_URL) return misconfiguredBackendResponse();
 
   try {
     const body = await request.json();
@@ -92,13 +67,6 @@ export async function PATCH(request: Request) {
       },
     });
   } catch (error) {
-    console.error("Error proxying to backend:", error);
-    return new Response(
-      JSON.stringify({ message: "Internal server error" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return internalProxyErrorResponse({ route: "PATCH /api/users/profile" }, error);
   }
 }

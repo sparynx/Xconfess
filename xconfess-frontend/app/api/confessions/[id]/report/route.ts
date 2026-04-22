@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "@/app/lib/config";
+import { internalProxyErrorResponse } from "@/app/lib/utils/proxyError";
 
 const BASE_API_URL = getApiBaseUrl();
 
@@ -79,12 +80,9 @@ export async function POST(
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(
-      JSON.stringify({
-        message: "Failed to submit report",
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
+    return internalProxyErrorResponse(
+      { route: "POST /api/confessions/[id]/report" },
+      err,
     );
   }
 }
-

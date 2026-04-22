@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "@/app/lib/config";
+import { logProxyError } from "@/app/lib/utils/proxyError";
 
 const BASE_API_URL = getApiBaseUrl();
 
@@ -66,6 +67,7 @@ export async function GET(request: Request) {
       } catch {
         /* ignore */
       }
+      logProxyError("Backend error", { route: "GET /api/confessions/search", backendStatus: res.status });
       return Response.json(
         {
           message: body.message ?? `Search failed: ${res.statusText}`,
@@ -160,6 +162,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (err) {
+    logProxyError("Failed to reach backend", { route: "GET /api/confessions/search" }, err);
     const message =
       err instanceof Error ? err.message : "Search service unavailable";
     return Response.json(

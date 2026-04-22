@@ -3,6 +3,7 @@ import {
   REACTION_EMOJI_MAP,
 } from "@/app/lib/constants/reactions";
 import { getApiBaseUrl } from "@/app/lib/config";
+import { backendHttpErrorResponse, internalProxyErrorResponse } from "@/app/lib/utils/proxyError";
 
 const BASE_API_URL = getApiBaseUrl();
 
@@ -14,8 +15,10 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  let correlationId: string | undefined;
   try {
     const { id } = await context.params;
+    correlationId = request.headers.get("X-Correlation-ID") ?? undefined;
     const body = await request.json();
     const { type } = body;
 
@@ -81,20 +84,11 @@ export async function POST(
         // Use default error message if response is not JSON
       }
 
-      console.error(
-        `Reaction API error (${reactionRes.status}):`,
-        errorMessage
-      );
-
-      return new Response(
-        JSON.stringify({
-          error: "Failed to persist reaction",
-          message: errorMessage,
-        }),
-        {
-          status: reactionRes.status,
-          headers: { "Content-Type": "application/json" },
-        }
+      return backendHttpErrorResponse(
+        errorMessage,
+        reactionRes.status,
+        "Failed to persist reaction",
+        { route: "POST /api/confessions/[id]/react", correlationId },
       );
     }
 
@@ -158,17 +152,9 @@ export async function POST(
       }
     );
   } catch (err) {
-    console.error("Error processing reaction:", err);
-
-    return new Response(
-      JSON.stringify({
-        error: "Internal server error",
-        message: "Failed to process reaction. Please try again.",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
+    return internalProxyErrorResponse(
+      { route: "POST /api/confessions/[id]/react", correlationId },
+      err,
     );
   }
 }
