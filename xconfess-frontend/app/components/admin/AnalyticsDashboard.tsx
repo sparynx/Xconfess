@@ -1,7 +1,8 @@
 'use client';
 
 import { Analytics } from '@/app/lib/api/admin';
-import { useGlobalToast } from '@/app/components/common/Toast';
+import { useExportCSV } from '@/app/lib/hooks/useExportCSV';
+import { ExportCsvButton } from '@/app/components/admin/ExportCsvButton';
 import {
   LineChart,
   Line,
@@ -17,7 +18,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { exportToCSV } from '@/app/lib/utils/csvExport';
 
 interface AnalyticsDashboardProps {
   analytics: Analytics;
@@ -26,7 +26,7 @@ interface AnalyticsDashboardProps {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
 export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProps) {
-  const toast = useGlobalToast();
+  const { triggerExport, isExporting } = useExportCSV({ label: 'analytics' });
   const { overview, reports, trends } = analytics;
 
   const reportsByStatusData = reports.byStatus.map((item) => ({
@@ -45,35 +45,14 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
   }));
 
   const handleExportAnalytics = () => {
-    const exportData = [
-      {
-        metric: 'Total Users',
-        value: overview.totalUsers,
-      },
-      {
-        metric: 'Active Users (30d)',
-        value: overview.activeUsers,
-      },
-      {
-        metric: 'Total Confessions',
-        value: overview.totalConfessions,
-      },
-      {
-        metric: 'Total Reports',
-        value: overview.totalReports,
-      },
-      {
-        metric: 'Banned Users',
-        value: overview.bannedUsers,
-      },
-      {
-        metric: 'Hidden Confessions',
-        value: overview.hiddenConfessions,
-      },
-      {
-        metric: 'Deleted Confessions',
-        value: overview.deletedConfessions,
-      },
+    const exportData: Record<string, unknown>[] = [
+      { metric: 'Total Users',           value: overview.totalUsers },
+      { metric: 'Active Users (30d)',     value: overview.activeUsers },
+      { metric: 'Total Confessions',      value: overview.totalConfessions },
+      { metric: 'Total Reports',          value: overview.totalReports },
+      { metric: 'Banned Users',           value: overview.bannedUsers },
+      { metric: 'Hidden Confessions',     value: overview.hiddenConfessions },
+      { metric: 'Deleted Confessions',    value: overview.deletedConfessions },
       ...reports.byStatus.map((item) => ({
         metric: `Reports - ${item.status}`,
         value: parseInt(item.count, 10),
@@ -83,27 +62,18 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
         value: parseInt(item.count, 10),
       })),
     ];
-    const exported = exportToCSV(
-      exportData,
-      `analytics-${new Date().toISOString().split('T')[0]}.csv`,
-    );
-    if (!exported) {
-      toast.warning('No analytics data available to export.');
-      return;
-    }
 
-    toast.success('Analytics CSV exported.');
+    triggerExport(exportData, `analytics-${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <button
+        <ExportCsvButton
           onClick={handleExportAnalytics}
-          className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm"
-        >
-          Export Analytics CSV
-        </button>
+          isExporting={isExporting}
+          label="Export Analytics CSV"
+        />
       </div>
       {/* Overview Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">

@@ -6,7 +6,8 @@ import { adminApi, Report } from "@/app/lib/api/admin";
 import ReportDetail from "./ReportDetail";
 import { ConfirmDialog } from "@/app/components/admin/ConfirmDialog";
 import { useGlobalToast } from "@/app/components/common/Toast";
-import { exportToCSV } from "@/app/lib/utils/csvExport";
+import { useExportCSV } from "@/app/lib/hooks/useExportCSV";
+import { ExportCsvButton } from "@/app/components/admin/ExportCsvButton";
 
 export default function ReportList() {
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
@@ -20,6 +21,7 @@ export default function ReportList() {
 
   const queryClient = useQueryClient();
   const toast = useGlobalToast();
+  const { triggerExport, isExporting: isExportingCsv } = useExportCSV({ label: 'reports' });
 
   const { data, isLoading } = useQuery({
     queryKey: [
@@ -287,9 +289,9 @@ export default function ReportList() {
             />
           </div>
           <div className="flex items-end gap-2">
-            <button
+            <ExportCsvButton
               onClick={() => {
-                const exportData = reports.map((r: Report) => ({
+                const exportData: Record<string, unknown>[] = reports.map((r: Report) => ({
                   id: r.id,
                   type: r.type,
                   status: r.status,
@@ -300,21 +302,14 @@ export default function ReportList() {
                     ? new Date(r.resolvedAt).toLocaleString()
                     : "",
                 }));
-                const exported = exportToCSV(
+                triggerExport(
                   exportData,
                   `reports-${new Date().toISOString().split("T")[0]}.csv`,
                 );
-                if (!exported) {
-                  toast.warning("No reports available to export.");
-                  return;
-                }
-
-                toast.success("Reports CSV exported.");
               }}
-              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm"
-            >
-              Export CSV
-            </button>
+              isExporting={isExportingCsv}
+              label="Export Reports CSV"
+            />
             {selectedIds.size > 0 && (
               <button
                 onClick={handleBulkResolve}
