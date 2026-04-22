@@ -28,10 +28,15 @@ export default function UserManagement() {
   const banMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       adminApi.banUser(id, reason),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users-search'] });
       setSelectedUser(null);
-      toast.success('User banned.');
+      toast.success('User banned.', {
+        action: {
+          label: 'Undo',
+          onClick: () => unbanMutation.mutate(variables.id),
+        },
+      });
     },
     onError: () => {
       toast.error('Failed to ban user.');
@@ -40,10 +45,15 @@ export default function UserManagement() {
 
   const unbanMutation = useMutation({
     mutationFn: (id: string) => adminApi.unbanUser(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users-search'] });
       setSelectedUser(null);
-      toast.success('User unbanned.');
+      toast.success('User unbanned.', {
+        action: {
+          label: 'Undo',
+          onClick: () => banMutation.mutate({ id }),
+        },
+      });
     },
     onError: () => {
       toast.error('Failed to unban user.');
