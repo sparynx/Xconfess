@@ -1,5 +1,7 @@
 # Maintainer Backlog Index
 
+> **Triaging a new Wave issue?** See [`WAVE_TRIAGE.md`](./WAVE_TRIAGE.md) for the full labeling, scoping, and ready-for-contributors process.
+
 This index is a quick routing reference for follow-up work. It is intentionally lightweight: refer to the linked issues for the authoritative scope, acceptance criteria, and implementation details.
 
 ## By Subsystem
@@ -11,4 +13,6 @@ This index is a quick routing reference for follow-up work. It is intentionally 
 ## Notes
 
 If a task is missing from this index, add a new maintainer issue and link it here.
+
+Before publishing any issue as a Stellar Wave contribution, verify it against the checklist in [`WAVE_TRIAGE.md`](./WAVE_TRIAGE.md).
 
