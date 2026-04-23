@@ -84,7 +84,6 @@ describe('ConfessionService', () => {
   });
 
   it('getConfessions paginates and filters', async () => {
-    qb.getCount.mockResolvedValue(20);
     qb.getMany.mockResolvedValue([{ id: 'a' }]);
 
     const res = await service.getConfessions({
@@ -93,8 +92,10 @@ describe('ConfessionService', () => {
       sort: SortOrder.NEWEST,
     });
     expect(qb.skip).toHaveBeenCalledWith(5);
-    expect(qb.take).toHaveBeenCalledWith(5);
-    expect(res.meta.total).toBe(20);
+    expect(qb.take).toHaveBeenCalledWith(6); // fetchLimit = limit + 1
+    expect(res.data).toHaveLength(1);
+    expect(res.limit).toBe(5);
+    expect(res.hasMore).toBe(false);
   });
 
   it('getConfessions rejects invalid limit', async () => {
