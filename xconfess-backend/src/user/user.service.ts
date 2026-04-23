@@ -288,4 +288,117 @@ export class UserService {
       this.logger.debug(`Reactions hidden for user ${user.id}`);
     }
   }
+
+  async getUserConfessionsList(
+    userId: number,
+    page: number,
+    limit: number,
+  ): Promise<{ data: any[]; meta: any }> {
+    const user = await this.findById(userId);
+    if (!user) {
+      return { data: [], meta: { total: 0, page, limit, totalPages: 0 } };
+    }
+
+    const userEntity = this.userRepository.metadata.target;
+    const skip = (page - 1) * limit;
+
+    const confessions = await this.userRepository.manager
+      .createQueryBuilder(userEntity as any, 'u')
+      .leftJoinAndSelect('u.anonymousUser', 'au')
+      .leftJoinAndSelect('au.confessions', 'confessions')
+      .where('u.id = :userId', { userId })
+      .andWhere('confessions.isDeleted = false')
+      .andWhere('confessions.isHidden = false')
+      .orderBy('confessions.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const [data, total] = confessions;
+
+    const decryptedData = data
+      .flatMap((u: any) => u.anonymousUser?.confessions || [])
+      .map((confession: any) => {
+        if (confession.message) {
+          try {
+            const { CryptoUtil } = require('../common/crypto.util');
+            confession.message = CryptoUtil.decrypt(
+              confession.message,
+              confession.messageIv,
+              confession.messageTag,
+            );
+          } catch {
+            confession.message = '[Encrypted]';
+          }
+        }
+        return confession;
+      });
+
+    return {
+      data: decryptedData,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getUserActivitiesList(
+    userId: number,
+    page: number,
+    limit: number,
+  ): Promise<{ data: any[]; meta: any }> {
+    const user = await this.findById(userId);
+    if (!user) {
+      return { data: [], meta: { total: 0, page, limit, totalPages: 0 } };
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [confessions, totalConfessions] = await this.userRepository.manager
+      .getRepository('AnonymousConfession')
+      .createQueryBuilder('confession')
+      .leftJoin('confession.anonymousUser', 'au')
+      .leftJoin('au.userLinks', 'ul')
+      .where('ul.userId = :userId', { userId })
+      .andWhere('confession.isDeleted = false')
+      .andWhere('confession.isHidden = false')
+      .orderBy('confession.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const decryptedConfessions = confessions.map((confession: any) => {
+      if (confession.message) {
+        try {
+          const { CryptoUtil } = require('../common/crypto.util');
+          confession.message = CryptoUtil.decrypt(
+            confession.message,
+            confession.messageIv,
+            confession.messageTag,
+          );
+        } catch {
+          confession.message = '[Encrypted]';
+        }
+      }
+      return {
+        type: 'confession',
+        id: confession.id,
+        content: confession.message,
+        createdAt: confession.created_at,
+      };
+    });
+
+    return {
+      data: decryptedConfessions,
+      meta: {
+        total: totalConfessions,
+        page,
+        limit,
+        totalPages: Math.ceil(totalConfessions / limit),
+      },
+    };
+  }
 }

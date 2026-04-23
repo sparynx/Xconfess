@@ -253,23 +253,102 @@ export class UserController {
   async getPublicProfile(
     @Param('id') id: string,
   ): Promise<UserProfileResponse> {
-    // Mock implementation
-    return {
-      id: parseInt(id),
-      username: 'Anonymous',
-      isAnonymous: true,
-    };
+    try {
+      const userId = parseInt(id, 10);
+
+      if (isNaN(userId)) {
+        return {
+          id: parseInt(id),
+          username: 'Anonymous',
+          isAnonymous: true,
+        };
+      }
+
+      const user = await this.userService.findById(userId);
+
+      if (!user || !user.isDiscoverable()) {
+        return {
+          id: userId,
+          username: 'Anonymous',
+          isAnonymous: true,
+        };
+      }
+
+      return {
+        id: user.id,
+        username: user.username,
+        isAnonymous: false,
+      };
+    } catch {
+      return {
+        id: parseInt(id, 10),
+        username: 'Anonymous',
+        isAnonymous: true,
+      };
+    }
   }
 
   @Get(':id/confessions')
-  async getUserConfessions(@Param('id') id: string): Promise<any[]> {
-    // Mock implementation
-    return [];
+  async getUserConfessions(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ data: any[]; meta: any }> {
+    try {
+      const userId = parseInt(id, 10);
+      if (isNaN(userId)) {
+        return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
+      }
+
+      const user = await this.userService.findById(userId);
+      if (!user || !user.isDiscoverable()) {
+        return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
+      }
+
+      const pageNum = parseInt(page || '1', 10);
+      const limitNum = parseInt(limit || '10', 10);
+
+      const confessions = await this.userService.getUserConfessionsList(
+        userId,
+        pageNum,
+        limitNum,
+      );
+
+      return confessions;
+    } catch {
+      return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
+    }
   }
 
   @Get(':id/activities')
-  async getUserActivities(@Param('id') id: string): Promise<any[]> {
-    // Mock implementation
-    return [];
+  async getUserActivities(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ data: any[]; meta: any }> {
+    try {
+      const userId = parseInt(id, 10);
+      if (isNaN(userId)) {
+        return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
+      }
+
+      const user = await this.userService.findById(userId);
+      if (!user || !user.isDiscoverable()) {
+        return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
+      }
+
+      const pageNum = parseInt(page || '1', 10);
+      const limitNum = parseInt(limit || '10', 10);
+
+      const activities = await this.userService.getUserActivitiesList(
+        userId,
+        pageNum,
+        limitNum,
+      );
+
+      return activities;
+    } catch {
+      return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
+    }
   }
 }
