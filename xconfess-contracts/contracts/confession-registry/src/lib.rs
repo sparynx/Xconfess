@@ -1,4 +1,6 @@
 #![no_std]
+#![allow(dead_code)]
+#![allow(deprecated)]
 #[cfg(test)]
 #[path = "confession_reg_auth.rs"]
 mod confession_reg_auth;
@@ -302,7 +304,12 @@ impl ConfessionRegistry {
         nonce: u64,
     ) -> Result<u64, ReplayError> {
         consume_nonce(&env, &author, nonce)?;
-        Ok(Self::create_confession(env, author, content_hash, timestamp))
+        Ok(Self::create_confession(
+            env,
+            author,
+            content_hash,
+            timestamp,
+        ))
     }
 
     // ─── Update Status ───

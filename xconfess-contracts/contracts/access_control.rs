@@ -140,7 +140,9 @@ pub fn init_owner(env: &Env, owner: &Address) -> Result<(), AccessError> {
     env.storage().instance().set(&AccessKey::Admins, &admins);
 
     let operators: Map<Address, ()> = Map::new(env);
-    env.storage().instance().set(&AccessKey::Operators, &operators);
+    env.storage()
+        .instance()
+        .set(&AccessKey::Operators, &operators);
 
     Ok(())
 }
@@ -411,7 +413,9 @@ pub fn grant_operator(env: &Env, caller: &Address, target: &Address) -> Result<(
         .unwrap_or_else(|| Map::new(env));
 
     operators.set(target.clone(), ());
-    env.storage().instance().set(&AccessKey::Operators, &operators);
+    env.storage()
+        .instance()
+        .set(&AccessKey::Operators, &operators);
 
     Ok(())
 }
@@ -432,7 +436,9 @@ pub fn revoke_operator(env: &Env, caller: &Address, target: &Address) -> Result<
         .unwrap_or_else(|| Map::new(env));
 
     operators.remove(target.clone());
-    env.storage().instance().set(&AccessKey::Operators, &operators);
+    env.storage()
+        .instance()
+        .set(&AccessKey::Operators, &operators);
 
     Ok(())
 }

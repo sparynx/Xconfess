@@ -146,7 +146,7 @@ fn a4_double_delete_is_rejected() {
 #[test]
 #[should_panic(expected = "confession not found")]
 fn a5_delete_nonexistent_confession_panics() {
-    let (env, client, _admin, author) = setup();
+    let (_env, client, _admin, author) = setup();
     client.delete_confession(&author, &9_999, &1_000_000);
 }
 
@@ -209,7 +209,7 @@ fn b4_cannot_update_deleted_confession() {
 #[test]
 #[should_panic(expected = "confession not found")]
 fn b5_update_nonexistent_confession_panics() {
-    let (env, client, _admin, author) = setup();
+    let (_env, client, _admin, author) = setup();
     client.update_status(&author, &9_999, &ConfessionStatus::Flagged, &1_000_000);
 }
 

@@ -1,7 +1,5 @@
 use anonymous_tipping::{AnonymousTipping, AnonymousTippingClient};
-use confession_registry::{
-    ConfessionRegistry, ConfessionRegistryClient, ConfessionStatus,
-};
+use confession_registry::{ConfessionRegistry, ConfessionRegistryClient, ConfessionStatus};
 use reputation_badges::{BadgeType, ReputationBadges, ReputationBadgesClient};
 use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, String};
 
@@ -93,7 +91,10 @@ fn flagged_confession_flow_keeps_cross_contract_state_consistent() {
     );
     assert_eq!(settlement_id, 1);
 
-    assert_eq!(registry.get_confession(&confession_id).status, ConfessionStatus::Flagged);
+    assert_eq!(
+        registry.get_confession(&confession_id).status,
+        ConfessionStatus::Flagged
+    );
     assert!(badges.has_badge(&author, &BadgeType::PopularVoice));
     assert_eq!(tipping.get_tips(&author), TIP_AMOUNT);
     assert_eq!(registry.get_total_count(), 1);

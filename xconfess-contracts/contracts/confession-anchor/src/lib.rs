@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(dead_code)]
 
 mod errors;
 mod events;
@@ -295,17 +296,23 @@ impl ConfessionAnchor {
     }
 
     /// Read-only compatibility predicate used by deployment automation.
-    pub fn can_upgrade_from(_env: Env, from_major: u32, from_minor: u32, from_patch: u32) -> bool {
+    pub fn can_upgrade_from(env: Env, from_major: u32, from_minor: u32, from_patch: u32) -> bool {
+        let policy = Self::get_upgrade_policy(env);
+
         if from_major != CONTRACT_SEMVER_MAJOR {
             return false;
         }
 
-        if from_minor < MIN_SUPPORTED_FROM_MINOR || from_minor > CONTRACT_SEMVER_MINOR {
+        if from_minor > policy.current_minor {
             return false;
         }
 
-        if from_minor == CONTRACT_SEMVER_MINOR {
-            return from_patch <= CONTRACT_SEMVER_PATCH;
+        if from_minor < policy.min_supported_from_minor {
+            return false;
+        }
+
+        if from_minor == policy.current_minor {
+            return from_patch <= policy.current_patch;
         }
 
         true
@@ -1152,7 +1159,11 @@ mod test {
         assert!(!client.can_upgrade_from(&(CONTRACT_SEMVER_MAJOR + 1), &0, &0));
         assert!(!client.can_upgrade_from(&(CONTRACT_SEMVER_MAJOR - 1), &0, &0));
         assert!(!client.can_upgrade_from(&CONTRACT_SEMVER_MAJOR, &(CONTRACT_SEMVER_MINOR + 1), &0));
-        assert!(!client.can_upgrade_from(&CONTRACT_SEMVER_MAJOR, &CONTRACT_SEMVER_MINOR, &(CONTRACT_SEMVER_PATCH + 1)));
+        assert!(!client.can_upgrade_from(
+            &CONTRACT_SEMVER_MAJOR,
+            &CONTRACT_SEMVER_MINOR,
+            &(CONTRACT_SEMVER_PATCH + 1)
+        ));
     }
 
     #[test]

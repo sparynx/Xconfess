@@ -258,6 +258,8 @@ dependencies = [
 name = "confession-registry"
 version = "0.1.0"
 dependencies = [
+ "anonymous-tipping",
+ "reputation-badges",
  "soroban-sdk",
 ]
 
