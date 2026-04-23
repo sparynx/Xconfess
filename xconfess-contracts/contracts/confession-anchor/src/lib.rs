@@ -18,6 +18,9 @@ pub const CONTRACT_SEMVER_MAJOR: u32 = 1;
 pub const CONTRACT_SEMVER_MINOR: u32 = 0;
 pub const CONTRACT_SEMVER_PATCH: u32 = 0;
 pub const CONTRACT_BUILD_METADATA: &str = "xconfess.confession-anchor+2026-03-23";
+pub const MIN_SUPPORTED_FROM_MAJOR: u32 = 1;
+pub const MIN_SUPPORTED_FROM_MINOR: u32 = 0;
+pub const UPGRADE_POLICY_VERSION: u32 = 1;
 
 const CAPABILITY_ANCHOR_V1: Symbol = symbol_short!("anchorv1");
 const CAPABILITY_VERIFY_V1: Symbol = symbol_short!("verifyv1");
@@ -61,6 +64,18 @@ pub struct ContractCapabilityInfo {
     pub error_registry_version: u32,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UpgradeCompatibilityPolicy {
+    pub policy_version: u32,
+    pub current_major: u32,
+    pub current_minor: u32,
+    pub current_patch: u32,
+    pub min_supported_from_major: u32,
+    pub min_supported_from_minor: u32,
+    pub allow_major_upgrade: bool,
+}
+
 #[contractevent(topics = ["confession_anchor"], data_format = "vec")]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfessionAnchoredEvent {
@@ -68,6 +83,18 @@ pub struct ConfessionAnchoredEvent {
     pub hash: BytesN<32>,
     pub timestamp: u64,
     pub anchor_height: u32,
+}
+
+#[contractevent(topics = ["ver_check"], data_format = "vec")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VersionCompatibilityCheckedEvent {
+    pub from_major: u32,
+    pub from_minor: u32,
+    pub from_patch: u32,
+    pub to_major: u32,
+    pub to_minor: u32,
+    pub to_patch: u32,
+    pub compatible: bool,
 }
 
 #[contracterror]
@@ -88,6 +115,7 @@ pub enum Error {
     ContractPaused = 12,
     AlreadyOperator = 13,
     NotOperator = 14,
+    IncompatibleUpgrade = 15,
 }
 
 impl From<access_control::AccessError> for Error {
@@ -251,6 +279,63 @@ impl ConfessionAnchor {
 
     pub fn get_error_registry_version(_env: Env) -> u32 {
         errors::ERROR_REGISTRY_VERSION
+    }
+
+    /// Returns the currently enforced compatibility policy for upgrades.
+    pub fn get_upgrade_policy(_env: Env) -> UpgradeCompatibilityPolicy {
+        UpgradeCompatibilityPolicy {
+            policy_version: UPGRADE_POLICY_VERSION,
+            current_major: CONTRACT_SEMVER_MAJOR,
+            current_minor: CONTRACT_SEMVER_MINOR,
+            current_patch: CONTRACT_SEMVER_PATCH,
+            min_supported_from_major: MIN_SUPPORTED_FROM_MAJOR,
+            min_supported_from_minor: MIN_SUPPORTED_FROM_MINOR,
+            allow_major_upgrade: false,
+        }
+    }
+
+    /// Read-only compatibility predicate used by deployment automation.
+    pub fn can_upgrade_from(_env: Env, from_major: u32, from_minor: u32, from_patch: u32) -> bool {
+        if from_major != CONTRACT_SEMVER_MAJOR {
+            return false;
+        }
+
+        if from_minor < MIN_SUPPORTED_FROM_MINOR || from_minor > CONTRACT_SEMVER_MINOR {
+            return false;
+        }
+
+        if from_minor == CONTRACT_SEMVER_MINOR {
+            return from_patch <= CONTRACT_SEMVER_PATCH;
+        }
+
+        true
+    }
+
+    /// Enforced compatibility check that emits an audit event.
+    pub fn assert_upgrade_from(
+        env: Env,
+        from_major: u32,
+        from_minor: u32,
+        from_patch: u32,
+    ) -> Result<(), Error> {
+        let compatible = Self::can_upgrade_from(env.clone(), from_major, from_minor, from_patch);
+
+        VersionCompatibilityCheckedEvent {
+            from_major,
+            from_minor,
+            from_patch,
+            to_major: CONTRACT_SEMVER_MAJOR,
+            to_minor: CONTRACT_SEMVER_MINOR,
+            to_patch: CONTRACT_SEMVER_PATCH,
+            compatible,
+        }
+        .publish(&env);
+
+        if compatible {
+            Ok(())
+        } else {
+            Err(Error::IncompatibleUpgrade)
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1039,6 +1124,48 @@ mod test {
         assert_eq!(
             client.try_revoke_operator(&owner, &operator),
             Err(Ok(Error::NotOperator))
+        );
+    }
+
+    // ── Group J: Upgrade compatibility policy ───────────────────────────────
+
+    #[test]
+    fn upgrade_policy_is_discoverable() {
+        let (_env, client) = new_client();
+        let policy = client.get_upgrade_policy();
+
+        assert_eq!(policy.policy_version, UPGRADE_POLICY_VERSION);
+        assert_eq!(policy.current_major, CONTRACT_SEMVER_MAJOR);
+        assert_eq!(policy.current_minor, CONTRACT_SEMVER_MINOR);
+        assert_eq!(policy.current_patch, CONTRACT_SEMVER_PATCH);
+        assert_eq!(policy.min_supported_from_major, MIN_SUPPORTED_FROM_MAJOR);
+        assert_eq!(policy.min_supported_from_minor, MIN_SUPPORTED_FROM_MINOR);
+        assert!(!policy.allow_major_upgrade);
+    }
+
+    #[test]
+    fn version_transition_matrix_enforces_upgrade_constraints() {
+        let (_env, client) = new_client();
+
+        assert!(client.can_upgrade_from(&CONTRACT_SEMVER_MAJOR, &CONTRACT_SEMVER_MINOR, &0));
+        assert!(client.can_upgrade_from(&CONTRACT_SEMVER_MAJOR, &MIN_SUPPORTED_FROM_MINOR, &0));
+        assert!(!client.can_upgrade_from(&(CONTRACT_SEMVER_MAJOR + 1), &0, &0));
+        assert!(!client.can_upgrade_from(&(CONTRACT_SEMVER_MAJOR - 1), &0, &0));
+        assert!(!client.can_upgrade_from(&CONTRACT_SEMVER_MAJOR, &(CONTRACT_SEMVER_MINOR + 1), &0));
+        assert!(!client.can_upgrade_from(&CONTRACT_SEMVER_MAJOR, &CONTRACT_SEMVER_MINOR, &(CONTRACT_SEMVER_PATCH + 1)));
+    }
+
+    #[test]
+    fn assert_upgrade_from_rejects_incompatible_versions() {
+        let (_env, client) = new_client();
+
+        assert_eq!(
+            client.assert_upgrade_from(&CONTRACT_SEMVER_MAJOR, &CONTRACT_SEMVER_MINOR, &0),
+            ()
+        );
+        assert_eq!(
+            client.try_assert_upgrade_from(&(CONTRACT_SEMVER_MAJOR + 1), &0, &0),
+            Err(Ok(Error::IncompatibleUpgrade))
         );
     }
 }
