@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
+import { useAuth } from '@/app/lib/hooks/useAuth';
 import {
   validateLoginForm,
   parseLoginForm,
@@ -16,6 +17,7 @@ const showDevMockAdminLogin =
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -58,18 +60,11 @@ export default function LoginPage() {
     setLoading(true);
     setErrors({});
     try {
-      const res = await fetch('/api/auth/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: parsed.data.email, password: parsed.data.password }),
+      const user = await login({
+        email: parsed.data.email,
+        password: parsed.data.password,
       });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Login failed');
-      }
-
-      router.push('/admin/dashboard');
+      router.push(user.role === 'admin' ? '/admin/dashboard' : '/dashboard');
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Login failed';
       setErrors({ password: message });

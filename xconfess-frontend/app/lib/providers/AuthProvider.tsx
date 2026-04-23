@@ -7,6 +7,7 @@ import {
   AuthState,
   LoginCredentials,
   RegisterData,
+  User,
 } from '../types/auth';
 import { useAuthStore } from '../store/authStore';
 import { getErrorMessage } from '../utils/errorHandler';
@@ -98,7 +99,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   //  Login user with credentials
 
-  const login = async (credentials: LoginCredentials): Promise<void> => {
+  const login = async (credentials: LoginCredentials): Promise<User> => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
@@ -114,6 +115,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isLoading: false,
         error: null,
       });
+      return response.user;
     } catch (error) {
       setState({
         user: null,

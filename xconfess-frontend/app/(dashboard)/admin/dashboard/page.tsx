@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { adminApi, Analytics } from '@/app/lib/api/admin';
 import AnalyticsDashboard from '@/app/components/admin/AnalyticsDashboard';
+import { AnalyticsLoadingSkeleton } from '@/app/components/analytics/LoadingState';
 
 export default function AdminDashboardPage() {
   const { data: analytics, isLoading } = useQuery<Analytics>({
@@ -12,11 +13,7 @@ export default function AdminDashboardPage() {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500 dark:text-gray-400">Loading analytics...</div>
-      </div>
-    );
+    return <AnalyticsLoadingSkeleton />;
   }
 
   if (!analytics) {

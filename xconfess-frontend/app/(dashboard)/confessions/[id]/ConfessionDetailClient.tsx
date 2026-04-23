@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronRight, Eye, AlertCircle } from "lucide-react";
@@ -12,6 +13,7 @@ import { ShareButton } from "@/app/components/confession/ShareButton";
 import { CommentSection } from "@/app/components/confession/CommentSection";
 import { RelatedConfessions } from "@/app/components/confession/RelatedConfessions";
 import { formatDate } from "@/app/lib/utils/formatDate";
+import { queryKeys } from "@/app/lib/api/queryKeys";
 import { useAuth } from "@/app/lib/hooks/useAuth";
 import { getConfessionById } from "@/app/lib/api/confessions";
 import { createConfessionReport } from "@/app/lib/api/reports";
@@ -36,25 +38,21 @@ export function ConfessionDetailClient({
 }: ConfessionDetailClientProps) {
   const router = useRouter();
   const { user } = useAuth();
-  const [confession, setConfession] = useState(initialConfession);
-  const [refetching, setRefetching] = useState(false);
   const [reportStatus, setReportStatus] = useState<
     "idle" | "pending" | "success" | "error"
   >("idle");
   const [reportError, setReportError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setConfession(initialConfession);
-  }, [initialConfession]);
-
-const refetch = async () => {
-  setRefetching(true);
-  const result = await getConfessionById(confessionId);
-  if (result.ok && result.data) {
-    setConfession(result.data);
-  }
-  setRefetching(false);
-};
+  const { data: confession = initialConfession, isFetching, refetch } = useQuery({
+    queryKey: queryKeys.confessions.detail(confessionId),
+    queryFn: async () => {
+      const result = await getConfessionById(confessionId);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
+    initialData: initialConfession,
+  });
 
   const submitReport = async () => {
     if (reportStatus === "pending" || reportStatus === "success") return;
@@ -154,7 +152,9 @@ const refetch = async () => {
                   confessionContent={confession.content}
                   isAnchored={confession.isAnchored}
                   stellarTxHash={confession.stellarTxHash}
-                  onAnchorSuccess={() => refetch()}
+                  onAnchorSuccess={() => {
+                    void refetch();
+                  }}
                 />
               </div>
               <ShareButton confessionId={confessionId} variant="dropdown" />
@@ -168,7 +168,7 @@ const refetch = async () => {
               </p>
             )}
 
-            {refetching && (
+            {isFetching && (
               <p className="mt-2 text-xs text-zinc-500">Updating…</p>
             )}
           </CardContent>

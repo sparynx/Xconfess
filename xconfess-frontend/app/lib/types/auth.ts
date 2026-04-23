@@ -27,9 +27,9 @@ export interface User {
  * Response from login endpoint
  */
 export interface LoginResponse {
-  access_token: string;
+  access_token?: string;
   user: User;
-  anonymousUserId: string;
+  anonymousUserId?: string;
 }
 
 /**
@@ -75,7 +75,7 @@ export interface RegisterData {
  * Auth context value
  */
 export interface AuthContextValue extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<User>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;

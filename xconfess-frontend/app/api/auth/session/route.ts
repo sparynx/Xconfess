@@ -44,7 +44,10 @@ export async function POST(request: Request) {
             path: "/",
         });
 
-        return NextResponse.json({ user: data.user });
+        return NextResponse.json({
+            user: data.user,
+            anonymousUserId: data.anonymousUserId ?? null,
+        });
     } catch (error) {
         return createApiErrorResponse(error, {
             status: 500,
@@ -64,7 +67,7 @@ export async function GET() {
 
     try {
         // Bridges the session to the backend to get current user info
-        const response = await fetch(`${API_URL}/auth/profile`, {
+        const response = await fetch(`${API_URL}/auth/me`, {
             headers: {
                 Authorization: `Bearer ${token}`,
             },
@@ -90,4 +93,3 @@ export async function DELETE() {
     cookieStore.delete(SESSION_COOKIE_NAME);
     return NextResponse.json({ success: true });
 }
-

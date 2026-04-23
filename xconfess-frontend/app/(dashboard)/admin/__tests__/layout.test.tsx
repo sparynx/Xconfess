@@ -1,16 +1,18 @@
 /**
- * Regression tests for the admin layout dev-bypass guard.
+ * Regression tests for the admin layout auth guard.
  *
- * Security requirement (issue #649):
- * - The localStorage "adminMock" toggle must no longer grant admin access.
+ * Security requirement:
+ * - The layout must rely on session-backed auth state, not localStorage user mocks.
  * - NEXT_PUBLIC_DEV_BYPASS_AUTH may only bypass auth when NODE_ENV === "development".
- * - In production-like builds (NODE_ENV !== "development"), bypass mode is always false.
  */
 
 import React from "react";
 import { render, waitFor } from "@testing-library/react";
+import { useAuth } from "@/app/lib/hooks/useAuth";
 
 const mockReplace = jest.fn();
+const mockGetItem = jest.fn();
+
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace }),
   usePathname: () => "/admin/dashboard",
@@ -32,23 +34,34 @@ jest.mock("socket.io-client", () => ({
 
 jest.mock("@/app/lib/api/constants", () => ({
   AUTH_TOKEN_KEY: "auth_token",
-  USER_DATA_KEY: "user_data",
 }));
+
 jest.mock("@/app/lib/hooks/useFocusTrap", () => ({
   useFocusTrap: jest.fn(),
 }));
+
 jest.mock("@/app/lib/config", () => ({
   getApiBaseUrl: () => "http://localhost:5000",
 }));
 
-function setLocalStorage(key: string, value: string) {
-  (window.localStorage.getItem as jest.Mock).mockImplementation((k: string) =>
-    k === key ? value : null,
-  );
-}
+jest.mock("@/app/lib/hooks/useAuth", () => ({
+  useAuth: jest.fn(),
+}));
 
-function clearLocalStorage() {
-  (window.localStorage.getItem as jest.Mock).mockReturnValue(null);
+const mockedUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
+
+function setAuthState(overrides?: Partial<ReturnType<typeof useAuth>>) {
+  mockedUseAuth.mockReturnValue({
+    user: null,
+    isAuthenticated: false,
+    isLoading: false,
+    error: null,
+    login: jest.fn(),
+    register: jest.fn(),
+    logout: jest.fn(),
+    checkAuth: jest.fn(),
+    ...overrides,
+  });
 }
 
 async function renderLayout() {
@@ -58,8 +71,16 @@ async function renderLayout() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  clearLocalStorage();
   delete process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH;
+  Object.defineProperty(window, "localStorage", {
+    value: {
+      getItem: mockGetItem.mockReturnValue(null),
+      setItem: jest.fn(),
+      removeItem: jest.fn(),
+    },
+    writable: true,
+  });
+  setAuthState();
 });
 
 describe("isDevBypassEnabled - production guard", () => {
@@ -74,9 +95,9 @@ describe("isDevBypassEnabled - production guard", () => {
     });
   });
 
-  it("localStorage 'adminMock' key is never checked", async () => {
-    (window.localStorage.getItem as jest.Mock).mockImplementation((k: string) =>
-      k === "adminMock" ? "true" : null,
+  it("never checks a localStorage admin mock toggle", async () => {
+    mockGetItem.mockImplementation((key: string) =>
+      key === "adminMock" ? "true" : null,
     );
 
     await renderLayout();
@@ -84,23 +105,17 @@ describe("isDevBypassEnabled - production guard", () => {
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith("/login");
     });
-  });
-
-  it("NEXT_PUBLIC_DEV_BYPASS_AUTH='true' without development NODE_ENV does not bypass auth", async () => {
-    process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH = "true";
-    clearLocalStorage();
-
-    await renderLayout();
-
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/login");
-    });
+    expect(mockGetItem).not.toHaveBeenCalledWith("adminMock");
   });
 });
 
 describe("Admin layout - authentication redirect behaviour", () => {
-  it("redirects to /login when no user data is present in localStorage", async () => {
-    clearLocalStorage();
+  it("redirects to /login when no authenticated user is present", async () => {
+    setAuthState({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
 
     await renderLayout();
 
@@ -109,44 +124,51 @@ describe("Admin layout - authentication redirect behaviour", () => {
     });
   });
 
-  it("redirects to / when the stored user is not an admin", async () => {
-    setLocalStorage(
-      "user_data",
-      JSON.stringify({ id: 2, username: "alice", isAdmin: false, is_active: true }),
-    );
+  it("redirects to /dashboard when the authenticated user is not an admin", async () => {
+    setAuthState({
+      user: {
+        id: "2",
+        username: "alice",
+        email: "alice@example.com",
+        role: "user",
+        is_active: true,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+      isAuthenticated: true,
+      isLoading: false,
+    });
 
     await renderLayout();
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/");
+      expect(mockReplace).toHaveBeenCalledWith("/dashboard");
     });
-    expect(mockReplace).not.toHaveBeenCalledWith("/login");
   });
 
-  it("does not redirect when the stored user is an admin", async () => {
-    setLocalStorage(
-      "user_data",
-      JSON.stringify({ id: 1, username: "admin", isAdmin: true, is_active: true }),
-    );
-
-    await renderLayout();
-
-    await waitFor(() => expect(mockReplace).not.toHaveBeenCalled());
-  });
-
-  it("redirects to /login when stored user data is invalid JSON", async () => {
-    setLocalStorage("user_data", "not-valid-json");
+  it("does not redirect when the authenticated user is an admin", async () => {
+    setAuthState({
+      user: {
+        id: "1",
+        username: "admin",
+        email: "admin@example.com",
+        role: "admin",
+        is_active: true,
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+      isAuthenticated: true,
+      isLoading: false,
+    });
 
     await renderLayout();
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/login");
+      expect(mockReplace).not.toHaveBeenCalled();
     });
   });
 
-  it("does not seed admin state into localStorage for any reason in non-mock mode", async () => {
-    clearLocalStorage();
-
+  it("does not write admin state into localStorage", async () => {
     await renderLayout();
 
     expect(window.localStorage.setItem).not.toHaveBeenCalled();

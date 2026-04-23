@@ -5,9 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";
-import { AUTH_TOKEN_KEY, USER_DATA_KEY } from "@/app/lib/api/constants";
+import { AUTH_TOKEN_KEY } from "@/app/lib/api/constants";
 import { useFocusTrap } from "@/app/lib/hooks/useFocusTrap";
 import { getApiBaseUrl } from "@/app/lib/config";
+import { useAuth } from "@/app/lib/hooks/useAuth";
 
 /**
  * Returns true only when running in a local development environment AND the
@@ -25,6 +26,7 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [newReportsCount, setNewReportsCount] = useState(0);
   const queryClient = useQueryClient();
@@ -49,26 +51,24 @@ export default function AdminLayout({
     // evaluated at build time by Next.js / webpack dead-code elimination).
     if (isDevBypassEnabled()) return;
 
-    // Require a real authenticated admin session.
-    const userStr = localStorage.getItem(USER_DATA_KEY);
-    if (!userStr) {
+    if (isLoading) {
+      return;
+    }
+
+    if (!isAuthenticated || !user) {
       router.replace("/login");
       return;
     }
 
-    try {
-      const user = JSON.parse(userStr);
-      if (!user?.isAdmin) {
-        router.replace("/");
-      }
-    } catch {
-      router.replace("/login");
+    if (user.role !== "admin") {
+      router.replace("/dashboard");
     }
-  }, [router]);
+  }, [isAuthenticated, isLoading, router, user]);
 
   useEffect(() => {
     // Real-time notifications for new reports (admins only)
     if (isDevBypassEnabled()) return;
+    if (!user || user.role !== "admin") return;
     const token =
       typeof window !== "undefined"
         ? localStorage.getItem(AUTH_TOKEN_KEY)
@@ -137,7 +137,7 @@ export default function AdminLayout({
     return () => {
       socket.disconnect();
     };
-  }, [queryClient]);
+  }, [queryClient, user]);
 
   useFocusTrap({
     active: mobileOpen,
@@ -147,6 +147,16 @@ export default function AdminLayout({
     onEscape: () => setMobileOpen(false),
     trapFocus: true,
   });
+
+  if (!isDevBypassEnabled()) {
+    if (isLoading) {
+      return null;
+    }
+
+    if (!isAuthenticated || user?.role !== "admin") {
+      return null;
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
