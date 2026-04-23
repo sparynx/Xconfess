@@ -1,5 +1,5 @@
-import { Process, Processor } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Process, Processor } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import archiver from 'archiver';

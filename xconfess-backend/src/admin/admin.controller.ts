@@ -22,6 +22,7 @@ import { BanUserDto } from './dto/ban-user.dto';
 import { BulkResolveDto } from './dto/bulk-resolve.dto';
 import { ReportStatus, ReportType } from './entities/report.entity';
 import { AuditActionType } from '../audit-log/audit-log.entity';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { TemplateCategory } from '../comment/entities/moderation-note-template.entity';
 import { Request } from 'express';
 import { GetUser } from '../auth/get-user.decorator';
@@ -79,6 +80,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly moderationService: ModerationService,
     private readonly moderationTemplateService: ModerationTemplateService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   // Reports
@@ -309,23 +311,58 @@ export class AdminController {
     @Query('action') action?: string,
     @Query('entityType') entityType?: string,
     @Query('entityId') entityId?: string,
+    @Query('requestId') requestId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
-    const [logs, total] = await this.moderationService.getAuditLogs(
-      adminId ? parseInt(adminId, 10) : undefined,
-      parseAuditAction(action),
+    const result = await this.auditLogService.findAll({
+      adminId,
+      action: parseAuditAction(action),
       entityType,
       entityId,
-      parseInt(limit || '100', 10),
-      parseInt(offset || '0', 10),
-    );
-
-    return {
-      logs,
-      total,
+      requestId,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
       limit: parseInt(limit || '100', 10),
       offset: parseInt(offset || '0', 10),
-    };
+    });
+
+    return result;
+  }
+
+  // Audit Logs by requestId (dedicated endpoint for incident reviews)
+  @Get('audit-logs/by-request/:requestId')
+  async getAuditLogsByRequestId(
+    @Param('requestId') requestId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const result = await this.auditLogService.findAll({
+      requestId,
+      limit: parseInt(limit || '100', 10),
+      offset: parseInt(offset || '0', 10),
+    });
+
+    return result;
+  }
+
+  // Audit Logs by entity (for reviewing actions on a specific target)
+  @Get('audit-logs/by-entity/:entityType/:entityId')
+  async getAuditLogsByEntity(
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const result = await this.auditLogService.findAll({
+      entityType,
+      entityId,
+      limit: parseInt(limit || '100', 10),
+      offset: parseInt(offset || '0', 10),
+    });
+
+    return result;
   }
 }

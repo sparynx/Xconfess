@@ -22,6 +22,10 @@ export class ModerationService {
     notes: string | null,
     request?: Request,
   ): Promise<AuditLog> {
+    const requestId = (request as any)?.requestId || null;
+
+    const requestId = (request as any)?.requestId || null;
+
     const auditLog = this.auditLogRepository.create({
       adminId,
       action,
@@ -31,10 +35,12 @@ export class ModerationService {
         ...(metadata || {}),
         ...(entityType ? { entityType } : {}),
         ...(entityId ? { entityId } : {}),
+        ...(requestId ? { requestId } : {}),
       },
       notes,
       ipAddress: request?.ip || request?.socket?.remoteAddress || null,
       userAgent: request?.headers['user-agent'] || null,
+      requestId,
     });
 
     const saved = await this.auditLogRepository.save(auditLog);

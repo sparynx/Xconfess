@@ -78,6 +78,17 @@ export class ConfessionService {
     const msg = this.sanitizeMessage(dto.message);
     if (!msg) throw new BadRequestException('Invalid confession content');
 
+    // Idempotency: return existing confession if key was already processed
+    if (dto.idempotencyKey) {
+      const existing = await this.confessionRepo.findOne({
+        where: { idempotencyKey: dto.idempotencyKey },
+      });
+      if (existing) {
+        existing.message = decryptConfession(existing.message, this.aesKey);
+        return existing;
+      }
+    }
+
     try {
       // Step 0: Validate tags if provided
       let validatedTags: any[] = [];
@@ -136,6 +147,7 @@ export class ConfessionService {
         isHidden: moderationResult.status === ModerationStatus.REJECTED,
         moderationDetails: moderationResult.details,
         ...stellarData,
+        ...(dto.idempotencyKey ? { idempotencyKey: dto.idempotencyKey } : {}),
       });
 
       const savedConfession = await confessionRepo.save(conf);

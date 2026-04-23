@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject, NotFoundException } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue, Job } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue, Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import { AppLogger } from '../../logger/logger.service';
 import { AuditLogService } from '../../audit-log/audit-log.service';
@@ -32,17 +32,19 @@ export class JobManagementService {
   ) {}
 
   async listDlqJobs(page = 1, limit = 20, filter?: DlqJobFilter) {
-    const start = (page - 1) * limit;
-    const end = start + limit - 1;
+    const start = (page -1) * limit;
+    const end = start + limit -1;
 
-    const [jobs, total] = await Promise.all([
-      this.dlq.getJobs(
-        ['failed', 'completed', 'waiting', 'active', 'delayed'],
-        start,
-        end,
-      ),
-      this.dlq.count(),
-    ]);
+    const jobs = await this.dlq.getJobs(
+      ['failed', 'completed', 'waiting', 'active', 'delayed'],
+      start,
+      end,
+      true,
+    );
+
+    const totalObj = await this.dlq.getJobCounts();
+    const totalCount = (totalObj as any).failed + (totalObj as any).completed +
+      (totalObj as any).waiting + (totalObj as any).active + (totalObj as any).delayed;
 
     // Apply filtering if provided (Bull's getJobs doesn't filter by payload/reason out of the box easily)
     let filteredJobs = jobs;
@@ -83,7 +85,7 @@ export class JobManagementService {
         lastError: job.data._meta?.lastError,
         enqueuedAt: job.timestamp,
       })),
-      total,
+      total: totalCount,
       page,
       limit,
     };

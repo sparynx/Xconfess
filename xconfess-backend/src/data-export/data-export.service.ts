@@ -11,8 +11,8 @@ import * as crypto from 'crypto';
 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { ExportRequest } from './entities/export-request.entity';
 import { ExportChunk } from './entities/export-chunk.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';

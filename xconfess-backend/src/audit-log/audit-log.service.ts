@@ -171,6 +171,7 @@ export class AuditLogService {
         notes: null,
         ipAddress: dto.context?.ipAddress || null,
         userAgent: dto.context?.userAgent || null,
+        requestId: dto.context?.requestId || null,
       });
 
       await this.auditLogRepository.save(auditLog);
@@ -759,9 +760,10 @@ export class AuditLogService {
       }
 
       if (options.requestId) {
-        query.andWhere("audit_log.metadata->>'requestId' = :requestId", {
-          requestId: options.requestId,
-        });
+        query.andWhere(
+          "(audit_log.request_id = :requestId OR audit_log.metadata->>'requestId' = :requestId)",
+          { requestId: options.requestId },
+        );
       }
 
       if (options.exportId) {
@@ -993,9 +995,10 @@ export class AuditLogService {
         });
 
       if (options.requestId) {
-        query.andWhere("audit_log.metadata->>'requestId' = :requestId", {
-          requestId: options.requestId,
-        });
+        query.andWhere(
+          "(audit_log.request_id = :requestId OR audit_log.metadata->>'requestId' = :requestId)",
+          { requestId: options.requestId },
+        );
       }
 
       if (options.exportId) {
