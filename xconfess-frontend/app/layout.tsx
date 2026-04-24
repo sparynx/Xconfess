@@ -16,6 +16,10 @@ export const metadata: Metadata = {
   generator: "v0.app",
 };
 
+import { NetworkBanner } from "@/app/components/common/NetworkBanner";
+
+import { NetworkStatusProvider } from "@/app/lib/providers/NetworkStatusProvider";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,15 +31,18 @@ export default function RootLayout({
         <ErrorBoundary>
           <ThemeProvider>
             <AuthProvider>
-              <QueryProvider>
-                <ToastProvider>
-                  {children}
+              <NetworkStatusProvider>
+                <QueryProvider>
+                  <ToastProvider>
+                    <NetworkBanner />
+                    {children}
 
-                  {/* Onboarding system */}
-                  <OnboardingFlow />
-                  <HelpButton />
-                </ToastProvider>
-              </QueryProvider>
+                    {/* Onboarding system */}
+                    <OnboardingFlow />
+                    <HelpButton />
+                  </ToastProvider>
+                </QueryProvider>
+              </NetworkStatusProvider>
             </AuthProvider>
           </ThemeProvider>
         </ErrorBoundary>

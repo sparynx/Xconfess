@@ -2,8 +2,11 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
+import { useNetwork } from '@/app/lib/providers/NetworkStatusProvider';
+import { isNetworkError } from '@/app/lib/utils/errorHandler';
 
 export default function QueryProvider({ children }: { children: React.ReactNode }) {
+  const { setDegraded } = useNetwork();
   const [client] = useState(
     () =>
       new QueryClient({
@@ -14,6 +17,13 @@ export default function QueryProvider({ children }: { children: React.ReactNode 
             retry: 1,
             refetchOnReconnect: true,
             retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+            // Global error handler for degradation detection
+            throwOnError: (error) => {
+              if (isNetworkError(error)) {
+                setDegraded(true);
+              }
+              return false;
+            },
           },
         },
       }),
