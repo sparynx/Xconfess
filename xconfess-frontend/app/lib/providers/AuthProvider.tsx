@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { authApi } from '../api/authService';
 import {
   AuthContextValue,
@@ -43,10 +43,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   });
 
 
-
+  // Guard against concurrent checkAuth calls (race-condition fix)
+  const checkInProgress = useRef(false);
 
   /**
-  * Check if user is authenticated by validating token with backend
+  * Check if user is authenticated by validating token with backend.
+  * Uses a ref-based mutex to prevent concurrent calls from racing and
+  * causing state oscillation (e.g., loading → authenticated → loading).
   */
   const checkAuth = useCallback(async (): Promise<void> => {
     if (isDevBypassEnabled) {
@@ -67,6 +70,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
+    // Prevent concurrent check calls from racing
+    if (checkInProgress.current) {
+      return;
+    }
+    checkInProgress.current = true;
+
     try {
       const user = await authApi.getCurrentUser();
       setStoreUser(user);
@@ -85,6 +94,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isLoading: false,
         error: null, // Don't show error for initial check
       });
+    } finally {
+      checkInProgress.current = false;
     }
   }, [isDevBypassEnabled, setStoreUser]);
 
@@ -154,7 +165,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Logout user and clear auth data
 
   const logout = (): void => {
-    authApi.logout();
+    // Fire-and-forget the session cookie deletion, but clear local state
+    // immediately so AuthGuard can react without waiting for the network.
+    authApi.logout().catch(() => {});
     storeLogout();
     setState({
       user: null,
