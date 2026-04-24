@@ -50,34 +50,43 @@ pub struct Confession {
     pub status: ConfessionStatus,
 }
 
-#[contractevent(topics = ["confession_created"], data_format = "vec")]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ConfessionCreatedEvent {
-    #[topic]
-    pub id: u64,
-    pub author: Address,
-    pub content_hash: BytesN<32>,
-    pub timestamp: u64,
-}
+  #[contractevent(topics = ["confession_created"], data_format = "vec")]
+  #[derive(Clone, Debug, Eq, PartialEq)]
+  pub struct ConfessionCreatedEvent {
+      #[topic]
+      pub id: u64,
+      pub event_version: u32,
+      pub nonce: u64,
+      pub timestamp: u64,
+      pub author: Address,
+      pub content_hash: BytesN<32>,
+      pub correlation_id: Option<Symbol>,
+  }
 
-#[contractevent(topics = ["confession_updated"], data_format = "vec")]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ConfessionUpdatedEvent {
-    #[topic]
-    pub id: u64,
-    pub old_status: ConfessionStatus,
-    pub new_status: ConfessionStatus,
-    pub timestamp: u64,
-}
+  #[contractevent(topics = ["confession_updated"], data_format = "vec")]
+  #[derive(Clone, Debug, Eq, PartialEq)]
+  pub struct ConfessionUpdatedEvent {
+      #[topic]
+      pub id: u64,
+      pub event_version: u32,
+      pub nonce: u64,
+      pub timestamp: u64,
+      pub old_status: ConfessionStatus,
+      pub new_status: ConfessionStatus,
+      pub correlation_id: Option<Symbol>,
+  }
 
-#[contractevent(topics = ["confession_deleted"], data_format = "vec")]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ConfessionDeletedEvent {
-    #[topic]
-    pub id: u64,
-    pub caller: Address,
-    pub timestamp: u64,
-}
+  #[contractevent(topics = ["confession_deleted"], data_format = "vec")]
+  #[derive(Clone, Debug, Eq, PartialEq)]
+  pub struct ConfessionDeletedEvent {
+      #[topic]
+      pub id: u64,
+      pub event_version: u32,
+      pub nonce: u64,
+      pub timestamp: u64,
+      pub actor: Address,
+      pub correlation_id: Option<Symbol>,
+  }
 
 /// Storage keys used by the contract.
 #[contracttype]
@@ -94,6 +103,8 @@ pub enum DataKey {
     Admin,
     /// Per-caller sequencing nonce for replay protection.
     CallerNonce(Address),
+    /// Event nonce for confession events.
+    EventNonceConfession(u64),
 }
 
 #[contracterror]
@@ -242,14 +253,17 @@ impl ConfessionRegistry {
             .instance()
             .set(&DataKey::AuthorConfessions(author.clone()), &author_ids);
 
-        // Emit event
-        ConfessionCreatedEvent {
-            id,
-            author,
-            content_hash,
-            timestamp,
-        }
-        .publish(&env);
+         // Emit event
+         ConfessionCreatedEvent {
+               id,
+               event_version: events::EVENT_VERSION_V1,
+               nonce: events::bump_nonce(env, events::EventNonceKey::Confession(id)),
+               timestamp,
+               author,
+               content_hash,
+               correlation_id: None,
+           }
+           .publish(&env);
 
         id
     }
@@ -361,13 +375,16 @@ impl ConfessionRegistry {
             .instance()
             .set(&DataKey::Confession(id), &confession);
 
-        ConfessionUpdatedEvent {
-            id,
-            old_status,
-            new_status: confession.status,
-            timestamp,
-        }
-        .publish(&env);
+         ConfessionUpdatedEvent {
+               id,
+               event_version: events::EVENT_VERSION_V1,
+               nonce: events::bump_nonce(env, events::EventNonceKey::Confession(id)),
+               timestamp,
+               old_status,
+               new_status: confession.status,
+               correlation_id: None,
+           }
+           .publish(&env);
     }
 
     /// Replay-protected update_status variant.
@@ -425,12 +442,15 @@ impl ConfessionRegistry {
             .instance()
             .set(&DataKey::Confession(id), &confession);
 
-        ConfessionDeletedEvent {
-            id,
-            caller,
-            timestamp,
-        }
-        .publish(&env);
+         ConfessionDeletedEvent {
+               id,
+               event_version: events::EVENT_VERSION_V1,
+               nonce: events::bump_nonce(env, events::EventNonceKey::Confession(id)),
+               timestamp,
+               actor: caller,
+               correlation_id: None,
+           }
+           .publish(&env);
     }
 
     /// Replay-protected delete_confession variant.

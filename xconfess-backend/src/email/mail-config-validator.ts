@@ -83,7 +83,9 @@ export class MailConfigValidator implements OnModuleInit {
     if (result.valid) {
       this.logger.log('Mail configuration validated successfully');
     } else {
-      this.logger.error(`Mail configuration has errors: ${result.errors.join(', ')}`);
+      this.logger.error(
+        `Mail configuration has errors: ${result.errors.join(', ')}`,
+      );
     }
 
     if (result.warnings.length > 0) {

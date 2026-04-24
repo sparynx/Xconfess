@@ -1,6 +1,8 @@
 import { ExceptionFilter, Catch, ArgumentsHost } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ThrottlerException } from '@nestjs/throttler';
+import { ErrorCode } from '../errors/error-codes';
+import { AppException } from '../errors/app-exception';
 
 @Catch(ThrottlerException)
 export class ThrottlerExceptionFilter implements ExceptionFilter {
@@ -10,11 +12,13 @@ export class ThrottlerExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const status = exception.getStatus();
 
+    const appException = AppException.fromHttpException(exception);
+    const body = appException.getResponse() as any;
+
     response.status(status).json({
-      status,
-      message: 'Too Many Requests',
-      code: 'THROTTLED',
+      ...body,
       timestamp: new Date().toISOString(),
+      path: request.url,
       requestId: (request as any).requestId || 'unknown',
     });
   }

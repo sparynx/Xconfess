@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddIdempotencyKeyToConfessions20260423000001
-  implements MigrationInterface
-{
+export class AddIdempotencyKeyToConfessions20260423000001 implements MigrationInterface {
   name = 'AddIdempotencyKeyToConfessions20260423000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

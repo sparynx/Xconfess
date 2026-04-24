@@ -472,7 +472,7 @@ export class DataExportService {
       throw new NotFoundException('Export request not found or unauthorized');
     }
 
-    const canRedownload = this.isDownloadStillValid(request);
+    const canRedownload = this.isFileAvailable(request);
     const normalizedStatus: ExportHistoryStatus =
       request.status === 'READY' && !canRedownload
         ? 'EXPIRED'

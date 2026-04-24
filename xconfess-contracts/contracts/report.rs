@@ -5,12 +5,7 @@ use soroban_sdk::{
 use crate::{
     report_key, ERR_COOLDOWN_ACTIVE, ERR_DUPLICATE_REPORT, ERR_REASON_EMPTY, ERR_REASON_TOO_LONG,
 };
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-enum ReportNonceKey {
-    Stream(Symbol),
-}
+use crate::events::{EVENT_VERSION_V1, EventNonceKey};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -18,6 +13,7 @@ pub struct ReportSubmittedEvent {
     pub confession_id: Symbol,
     pub actor: Symbol,
     pub reason: SorobanString,
+    pub event_version: u32,
     pub nonce: u64,
     pub timestamp: u64,
 }
@@ -30,6 +26,7 @@ pub struct ReportSubmittedLedgerEvent {
     #[topic]
     pub actor: Symbol,
     pub reason: SorobanString,
+    pub event_version: u32,
     pub nonce: u64,
     pub timestamp: u64,
 }
@@ -102,15 +99,16 @@ impl ReportContract {
         // Save current timestamp for this actor-confession
         storage.set(&key, &env.ledger().timestamp());
 
-        // Emit deterministic report lifecycle event with monotonic nonce.
-        let nonce = Self::bump_nonce(&env, &confession_id);
-        let payload = ReportSubmittedLedgerEvent {
-            confession_id: confession_id.clone(),
-            actor: actor.clone(),
-            reason,
-            nonce,
-            timestamp: env.ledger().timestamp(),
-        };
+         // Emit deterministic report lifecycle event with monotonic nonce.
+         let nonce = events::bump_nonce(&env, events::EventNonceKey::Stream(confession_id.clone()));
+         let payload = ReportSubmittedLedgerEvent {
+             confession_id: confession_id.clone(),
+             actor: actor.clone(),
+             reason,
+             event_version: events::EVENT_VERSION_V1,
+             nonce,
+             timestamp: env.ledger().timestamp(),
+         };
         payload.publish(&env);
 
         Ok(())

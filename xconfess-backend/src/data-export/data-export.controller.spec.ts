@@ -251,12 +251,7 @@ describe('DataExportController', () => {
       const requestId = 'req-1';
       const userId = 'user-1';
       const chunkIndex = '2';
-      const { signature } = buildChunkParams(
-        requestId,
-        userId,
-        2,
-        futureTime,
-      );
+      const { signature } = buildChunkParams(requestId, userId, 2, futureTime);
 
       const mockChunk = {
         fileData: Buffer.from('chunk data'),

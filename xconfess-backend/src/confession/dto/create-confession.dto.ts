@@ -44,7 +44,8 @@ export class CreateConfessionDto {
   stellarTxHash?: string;
 
   @ApiPropertyOptional({
-    description: 'Idempotency key to prevent duplicate creates under network instability',
+    description:
+      'Idempotency key to prevent duplicate creates under network instability',
   })
   @IsOptional()
   @IsString()

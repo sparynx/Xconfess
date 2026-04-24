@@ -14,7 +14,9 @@ export function encodeCursor(cursorObj: CursorObject): string {
 /**
  * Decodes a base64 cursor string into an object.
  */
-export function decodeCursor<T extends CursorObject>(cursor?: string): T | undefined {
+export function decodeCursor<T extends CursorObject>(
+  cursor?: string,
+): T | undefined {
   if (!cursor) return undefined;
   try {
     const jsonString = Buffer.from(cursor, 'base64').toString('utf8');

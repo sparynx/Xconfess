@@ -66,7 +66,9 @@ describe('User Notification Preferences Security (e2e)', () => {
 
     userService = moduleFixture.get<UserService>(UserService);
     authService = moduleFixture.get<AuthService>(AuthService);
-    userRepository = moduleFixture.get<Repository<User>>(getRepositoryToken(User));
+    userRepository = moduleFixture.get<Repository<User>>(
+      getRepositoryToken(User),
+    );
 
     // Mock JWT token generation
     jwtToken = 'valid-jwt-token';
@@ -138,7 +140,10 @@ describe('User Notification Preferences Security (e2e)', () => {
     it('should update notification preferences when valid JWT token is provided', async () => {
       const updatedUser = {
         ...mockUser,
-        notificationPreferences: { ...mockUser.notificationPreferences, ...updateData },
+        notificationPreferences: {
+          ...mockUser.notificationPreferences,
+          ...updateData,
+        },
       };
 
       jest.spyOn(userService, 'findById').mockResolvedValue(mockUser);

@@ -1,9 +1,12 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "target": "ES2023",
+    "target": "ES2022",
     "outDir": "./dist",
     "rootDir": "./",
+    "paths": {
+      "src/*": ["./src/*"]
+    },
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
@@ -11,7 +14,6 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "sourceMap": true,
-    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
@@ -22,8 +24,7 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "noEmitOnError": false,
-    "moduleResolution": "node",
-    "ignoreDeprecations": "5.0",
+    "moduleResolution": "bundler",
     "types": [
       "jest",
       "node"

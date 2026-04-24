@@ -48,7 +48,10 @@ export interface RequestContextJobData {
   [key: string]: unknown;
 }
 
-export function injectRequestId<T extends RequestContextJobData>(data: T, requestId?: string): T {
+export function injectRequestId<T extends RequestContextJobData>(
+  data: T,
+  requestId?: string,
+): T {
   if (requestId) {
     return { ...data, requestId };
   }

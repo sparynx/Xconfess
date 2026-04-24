@@ -94,7 +94,9 @@ describe('DLQ Admin Security (e2e)', () => {
     await app.init();
 
     notificationQueue = moduleFixture.get<NotificationQueue>(NotificationQueue);
-    userRepository = moduleFixture.get<Repository<User>>(getRepositoryToken(User));
+    userRepository = moduleFixture.get<Repository<User>>(
+      getRepositoryToken(User),
+    );
 
     // Mock JWT tokens
     adminJwtToken = 'admin-jwt-token';
@@ -102,8 +104,12 @@ describe('DLQ Admin Security (e2e)', () => {
 
     // Mock notification queue methods
     jest.spyOn(notificationQueue, 'listDlqJobs').mockResolvedValue(mockDlqJobs);
-    jest.spyOn(notificationQueue, 'replayDlqJob').mockResolvedValue({ success: true });
-    jest.spyOn(notificationQueue, 'replayDlqJobsBulk').mockResolvedValue({ success: true, count: 1 });
+    jest
+      .spyOn(notificationQueue, 'replayDlqJob')
+      .mockResolvedValue({ success: true });
+    jest
+      .spyOn(notificationQueue, 'replayDlqJobsBulk')
+      .mockResolvedValue({ success: true, count: 1 });
   });
 
   afterAll(async () => {
@@ -116,15 +122,11 @@ describe('DLQ Admin Security (e2e)', () => {
 
   describe('Legacy DLQ endpoints should not exist', () => {
     it('GET /admin/dlq should return 404', () => {
-      return request(app.getHttpServer())
-        .get('/admin/dlq')
-        .expect(404);
+      return request(app.getHttpServer()).get('/admin/dlq').expect(404);
     });
 
     it('GET /admin/dlq/:id should return 404', () => {
-      return request(app.getHttpServer())
-        .get('/admin/dlq/123')
-        .expect(404);
+      return request(app.getHttpServer()).get('/admin/dlq/123').expect(404);
     });
 
     it('POST /admin/dlq/:id/retry should return 404', () => {
@@ -134,15 +136,11 @@ describe('DLQ Admin Security (e2e)', () => {
     });
 
     it('DELETE /admin/dlq/:id should return 404', () => {
-      return request(app.getHttpServer())
-        .delete('/admin/dlq/123')
-        .expect(404);
+      return request(app.getHttpServer()).delete('/admin/dlq/123').expect(404);
     });
 
     it('DELETE /admin/dlq should return 404', () => {
-      return request(app.getHttpServer())
-        .delete('/admin/dlq')
-        .expect(404);
+      return request(app.getHttpServer()).delete('/admin/dlq').expect(404);
     });
   });
 
@@ -221,7 +219,11 @@ describe('DLQ Admin Security (e2e)', () => {
         .expect(200)
         .expect((res) => {
           expect(res.body).toEqual({ success: true });
-          expect(notificationQueue.replayDlqJob).toHaveBeenCalledWith('job1', '1', 'test replay');
+          expect(notificationQueue.replayDlqJob).toHaveBeenCalledWith(
+            'job1',
+            '1',
+            'test replay',
+          );
         });
     });
 
@@ -239,7 +241,10 @@ describe('DLQ Admin Security (e2e)', () => {
         .expect(200)
         .expect((res) => {
           expect(res.body).toEqual({ success: true, count: 1 });
-          expect(notificationQueue.replayDlqJobsBulk).toHaveBeenCalledWith('1', bulkReplayBody);
+          expect(notificationQueue.replayDlqJobsBulk).toHaveBeenCalledWith(
+            '1',
+            bulkReplayBody,
+          );
         });
     });
 

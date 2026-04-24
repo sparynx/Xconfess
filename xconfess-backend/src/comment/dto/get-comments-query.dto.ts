@@ -30,7 +30,6 @@ export class GetCommentsQueryDto extends CursorPaginationDto {
     enum: CommentSortField,
     default: CommentSortField.CREATED_AT,
   })
-
   @ApiPropertyOptional({
     enum: CommentSortField,
     default: CommentSortField.CREATED_AT,

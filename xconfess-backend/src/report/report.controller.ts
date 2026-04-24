@@ -1,4 +1,12 @@
-import { Controller, Post, Get, Patch, Param, Body, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Param,
+  Body,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { ReportService } from './report.service';
 import { CreateReportDto } from './entities/dto/create-report.dto';
 import { UpdateReportDto } from './entities/dto/update-report.dto';

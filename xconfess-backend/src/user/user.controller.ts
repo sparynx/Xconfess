@@ -14,6 +14,8 @@ import {
   Req,
   Param,
   NotFoundException,
+  Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { AuthService } from '../auth/auth.service';
@@ -29,6 +31,9 @@ import {
   UpdatePrivacySettingsDto,
   PrivacySettingsResponseDto,
 } from './dto/update-privacy-settings.dto';
+import { ConfessionService } from '../confession/confession.service';
+import { GetUserConfessionsDto } from '../confession/dto/get-user-confessions.dto';
+import { ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 
 /**
  * Public user response contract.
@@ -63,6 +68,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
+    private readonly confessionService: ConfessionService,
   ) {}
 
   /** Maps a User entity to the public response shape — no internal fields. */
@@ -289,35 +295,29 @@ export class UserController {
   }
 
   @Get(':id/confessions')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get confessions belonging to a user (paginated)' })
+  @ApiParam({ name: 'id', description: 'User ID (numeric)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns paginated user confessions',
+  })
   async getUserConfessions(
     @Param('id') id: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ): Promise<{ data: any[]; meta: any }> {
-    try {
-      const userId = parseInt(id, 10);
-      if (isNaN(userId)) {
-        return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
-      }
-
-      const user = await this.userService.findById(userId);
-      if (!user || !user.isDiscoverable()) {
-        return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
-      }
-
-      const pageNum = parseInt(page || '1', 10);
-      const limitNum = parseInt(limit || '10', 10);
-
-      const confessions = await this.userService.getUserConfessionsList(
-        userId,
-        pageNum,
-        limitNum,
-      );
-
-      return confessions;
-    } catch {
-      return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
+    @Query() dto: GetUserConfessionsDto,
+    @GetUser() currentUser: User,
+  ): Promise<any> {
+    const userId = parseInt(id, 10);
+    if (isNaN(userId)) {
+      throw new BadRequestException('Invalid user ID');
     }
+
+    // Permission check: User can only see their own confessions unless they are an admin
+    if (currentUser.id !== userId && currentUser.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('You can only view your own confessions');
+    }
+
+    return this.confessionService.getUserConfessions(userId, dto);
   }
 
   @Get(':id/activities')
@@ -329,12 +329,18 @@ export class UserController {
     try {
       const userId = parseInt(id, 10);
       if (isNaN(userId)) {
-        return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
+        return {
+          data: [],
+          meta: { total: 0, page: 1, limit: 10, totalPages: 0 },
+        };
       }
 
       const user = await this.userService.findById(userId);
       if (!user || !user.isDiscoverable()) {
-        return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
+        return {
+          data: [],
+          meta: { total: 0, page: 1, limit: 10, totalPages: 0 },
+        };
       }
 
       const pageNum = parseInt(page || '1', 10);
@@ -348,7 +354,10 @@ export class UserController {
 
       return activities;
     } catch {
-      return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } };
+      return {
+        data: [],
+        meta: { total: 0, page: 1, limit: 10, totalPages: 0 },
+      };
     }
   }
 }

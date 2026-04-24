@@ -1,9 +1,4 @@
-import {
-  Processor,
-  Process,
-  OnWorkerEvent,
-  InjectQueue,
-} from '@nestjs/bullmq';
+import { Processor, OnWorkerEvent, InjectQueue, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { EmailNotificationService } from '../services/email-notification.service';
@@ -27,24 +22,27 @@ export interface NotificationJobData {
 }
 
 @Processor(NOTIFICATION_QUEUE)
-export class NotificationProcessor {
+export class NotificationProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationProcessor.name);
 
   constructor(
     private readonly emailNotificationService: EmailNotificationService,
     @InjectQueue(NOTIFICATION_DLQ)
     private readonly dlq: Queue<NotificationJobData>,
-  ) {}
+  ) {
+    super();
+  }
 
   // ------------------------------------------------------------------ process
-  @Process('send-notification')
-  async handleSendNotification(job: Job<NotificationJobData>): Promise<void> {
-    this.logger.log(
-      `Processing notification job ${job.id} (attempt ${job.attemptsMade + 1})` +
-        ` → userId: ${job.data.userId}`,
-    );
+  async process(job: Job<NotificationJobData>): Promise<void> {
+    if (job.name === 'send-notification') {
+      this.logger.log(
+        `Processing notification job ${job.id} (attempt ${job.attemptsMade + 1})` +
+          ` → userId: ${job.data.userId}`,
+      );
 
-    await this.emailNotificationService.sendEmail(job.data);
+      await this.emailNotificationService.sendEmail(job.data);
+    }
   }
 
   // --------------------------------------------------------------- on:failed
@@ -54,7 +52,10 @@ export class NotificationProcessor {
    * copy the full payload + error context into the dead-letter queue.
    */
   @OnWorkerEvent('failed')
-  async onFailed(job: Job<NotificationJobData> | undefined, error: Error): Promise<void> {
+  async onFailed(
+    job: Job<NotificationJobData> | undefined,
+    error: Error,
+  ): Promise<void> {
     if (!job) return;
 
     const maxAttempts = (job.opts as any)?.attempts ?? 1;

@@ -2,10 +2,7 @@ import { DataSource, Repository, FindOptionsWhere, ILike } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 import { AnonymousConfession } from '../entities/confession.entity';
 import { SearchConfessionDto } from '../dto/search-confession.dto';
-import {
-  decodeCursor,
-  encodeCursor,
-} from '../../common/pagination';
+import { decodeCursor, encodeCursor } from '../../common/pagination';
 
 /**
  * Repository for handling database operations related to anonymous confessions.

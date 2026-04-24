@@ -42,6 +42,9 @@ export class AnonymousConfession {
    * The confession entity defines owner relation as anonymousUser.
    * Always use confession.anonymousUser for ownership checks and relation loading.
    */
+  @Column({ name: 'anonymous_user_id' })
+  anonymousUserId: string;
+
   @ManyToOne(
     () => AnonymousUser,
     (anonymousUser) => anonymousUser.confessions,
@@ -71,18 +74,23 @@ export class AnonymousConfession {
   @OneToMany(() => ConfessionTag, (confessionTag) => confessionTag.confession)
   confessionTags: ConfessionTag[];
 
-   // Moderation fields
-   @Column('decimal', {
-     name: 'moderation_score',
-     precision: 5,
-     scale: 4,
-     default:0,
-   })
-   moderationScore: number;
+  // Moderation fields
+  @Column('decimal', {
+    name: 'moderation_score',
+    precision: 5,
+    scale: 4,
+    default: 0,
+  })
+  moderationScore: number;
 
-   @Index({ unique: true })
-   @Column({ name: 'idempotency_key', type: 'varchar', length: 64, nullable: true })
-   idempotencyKey?: string | null;
+  @Index({ unique: true })
+  @Column({
+    name: 'idempotency_key',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
+  idempotencyKey?: string | null;
 
   @Column('simple-array', { name: 'moderation_flags', default: '' })
   moderationFlags: string[];

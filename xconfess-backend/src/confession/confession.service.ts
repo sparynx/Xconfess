@@ -43,6 +43,7 @@ import { CacheService } from '../cache/cache.service';
 import { TagService } from './tag.service';
 import { ConfessionTag } from './entities/confession-tag.entity';
 import { toWindowBoundaries, TrendingWindow } from 'src/types/analytics.types';
+import { GetUserConfessionsDto } from './dto/get-user-confessions.dto';
 
 @Injectable()
 export class ConfessionService {
@@ -695,7 +696,7 @@ export class ConfessionService {
       );
 
       return confession;
-    } catch (error) {
+    } catch (error: any) {
       // Option 2: Use maskUserId helper for custom messages
       this.logger.error(
         `Failed to create confession for ${maskUserId(userId)}: ${error.message}`,
@@ -706,14 +707,99 @@ export class ConfessionService {
     }
   }
 
-  async getUserConfessions(userId: string) {
-    // Option 3: Mask in object logging
+  async getUserConfessions(userId: number, dto: GetUserConfessionsDto) {
     this.logger.log(
-      { action: 'fetch_confessions', userId: maskUserId(userId) },
+      {
+        action: 'fetch_user_confessions',
+        userId: maskUserId(userId.toString()),
+      },
       'ConfessionsService',
     );
 
-    return this.findByUser(userId);
+    const anonIds = await this.anonymousUserService.getAnonIdsForUser(userId);
+
+    if (anonIds.length === 0) {
+      return new CursorPaginatedResponseDto([], null, false, dto.limit || 10);
+    }
+
+    const limit = dto.limit ?? 10;
+    const sort = dto.sort || SortOrder.NEWEST;
+
+    const queryBuilder = this.confessionRepo
+      .createQueryBuilder('confession')
+      .where('confession.anonymousUserId IN (:...anonIds)', { anonIds })
+      .andWhere('confession.isDeleted = false');
+
+    if (dto.gender) {
+      queryBuilder.andWhere('confession.gender = :gender', {
+        gender: dto.gender,
+      });
+    }
+
+    if (dto.status) {
+      queryBuilder.andWhere('confession.moderationStatus = :status', {
+        status: dto.status,
+      });
+    }
+
+    // Apply cursor pagination
+    if (dto.cursor && sort === SortOrder.NEWEST) {
+      const parsedCursor = decodeCursor<{ id: string; created_at: string }>(
+        dto.cursor,
+      );
+      if (parsedCursor) {
+        queryBuilder.andWhere(
+          '(confession.created_at < :createdAt OR (confession.created_at = :createdAt AND confession.id < :id))',
+          { createdAt: parsedCursor.created_at, id: parsedCursor.id },
+        );
+      }
+    } else if (dto.page && dto.page > 1) {
+      const skip = (dto.page - 1) * limit;
+      queryBuilder.skip(skip);
+    }
+
+    if (sort === SortOrder.TRENDING) {
+      queryBuilder
+        .addSelect(
+          (sub) =>
+            sub
+              .select('COUNT(*)')
+              .from('reaction', 'r')
+              .where('r.confession_id = confession.id'),
+          'reaction_count',
+        )
+        .orderBy('reaction_count', 'DESC')
+        .addOrderBy('confession.created_at', 'DESC');
+    } else {
+      queryBuilder
+        .orderBy('confession.created_at', 'DESC')
+        .addOrderBy('confession.id', 'DESC');
+    }
+
+    const items = await queryBuilder.take(limit + 1).getMany();
+    const hasMore = items.length > limit;
+    const resultItems = hasMore ? items.slice(0, limit) : items;
+
+    const decryptedItems = resultItems.map((item) => ({
+      ...item,
+      message: decryptConfession(item.message, this.aesKey),
+    }));
+
+    let nextCursor: string | null = null;
+    if (hasMore && decryptedItems.length > 0) {
+      const lastItem = items[limit - 1];
+      nextCursor = encodeCursor({
+        id: lastItem.id,
+        created_at: lastItem.created_at.toISOString(),
+      });
+    }
+
+    return new CursorPaginatedResponseDto(
+      decryptedItems,
+      nextCursor,
+      hasMore,
+      limit,
+    );
   }
 
   // Private methods (examples)
@@ -723,7 +809,9 @@ export class ConfessionService {
   }
 
   private async findByUser(_userId: string) {
-    // Implementation
+    // Legacy method - redirecting to the new implementation
+    // Note: This matches the old signature but doesn't support pagination/filtering.
+    // It's better to use getUserConfessions directly.
     return [];
   }
 
@@ -735,7 +823,7 @@ export class ConfessionService {
 
       // Decrypt all confessions and convert to DTO
       return confessions.map((confession) => this.toResponseDto(confession));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         'Failed to fetch confessions',
         error.stack,
@@ -756,7 +844,7 @@ export class ConfessionService {
       }
 
       return this.toResponseDto(confession);
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof NotFoundException) {
         throw error;
       }

@@ -33,13 +33,11 @@ const MOCK_OPERATION = { type: 'invokeHostFunction' } as any;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function buildSuccessfulTxBuilderSpies(txBuilderService: TransactionBuilderService) {
-  jest
-    .spyOn(txBuilderService, 'buildTransaction')
-    .mockResolvedValue({} as any);
-  jest
-    .spyOn(txBuilderService, 'signTransaction')
-    .mockReturnValue({} as any);
+function buildSuccessfulTxBuilderSpies(
+  txBuilderService: TransactionBuilderService,
+) {
+  jest.spyOn(txBuilderService, 'buildTransaction').mockResolvedValue({} as any);
+  jest.spyOn(txBuilderService, 'signTransaction').mockReturnValue({} as any);
   jest
     .spyOn(txBuilderService, 'submitTransaction')
     .mockResolvedValue(MOCK_SUBMIT_RESULT as any);
@@ -189,7 +187,9 @@ describe('ContractService', () => {
       );
 
       // Expect exactly 3 encoded ScVals in the same positional order.
-      const spreadArgs = contractCallSpy.mock.calls[0].slice(1) as StellarSDK.xdr.ScVal[];
+      const spreadArgs = contractCallSpy.mock.calls[0].slice(
+        1,
+      ) as StellarSDK.xdr.ScVal[];
       expect(spreadArgs).toHaveLength(3);
       expect(StellarSDK.scValToNative(spreadArgs[0])).toBe('first');
       expect(Number(StellarSDK.scValToNative(spreadArgs[1]))).toBe(1);

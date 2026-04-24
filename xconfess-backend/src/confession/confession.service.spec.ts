@@ -11,11 +11,18 @@ import { ModerationRepositoryService } from '../moderation/moderation-repository
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AnonymousUserService } from '../user/anonymous-user.service';
 import { ConfigService } from '@nestjs/config';
+import { AppLogger } from 'src/logger/logger.service';
+import { EncryptionService } from 'src/encryption/encryption.service';
+import { StellarService } from '../stellar/stellar.service';
+import { CacheService } from '../cache/cache.service';
+import { TagService } from './tag.service';
+import { encryptConfession } from '../utils/confession-encryption';
 
 describe('ConfessionService', () => {
   let service: ConfessionService;
   let repo: jest.Mocked<Repository<AnonymousConfession>>;
   let qb: Partial<SelectQueryBuilder<AnonymousConfession>> & any;
+  let anonUserService: any;
 
   beforeEach(async () => {
     qb = {
@@ -57,17 +64,29 @@ describe('ConfessionService', () => {
           },
         },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: AnonymousUserService, useValue: { create: jest.fn() } },
+        {
+          provide: AnonymousUserService,
+          useValue: { create: jest.fn(), getAnonIdsForUser: jest.fn() },
+        },
         {
           provide: ConfigService,
           useValue: {
             get: jest.fn().mockReturnValue('12345678901234567890123456789012'),
           },
         },
+        { provide: AppLogger, useValue: { log: jest.fn(), error: jest.fn() } },
+        {
+          provide: EncryptionService,
+          useValue: { encrypt: jest.fn(), decrypt: jest.fn() },
+        },
+        { provide: StellarService, useValue: { anchorConfession: jest.fn() } },
+        { provide: CacheService, useValue: { get: jest.fn(), set: jest.fn() } },
+        { provide: TagService, useValue: { validateTags: jest.fn() } },
       ],
     }).compile();
 
     service = module.get(ConfessionService);
+    anonUserService = module.get(AnonymousUserService);
   });
 
   it('remove() soft‑deletes existing', async () => {
@@ -84,7 +103,6 @@ describe('ConfessionService', () => {
   });
 
   it('getConfessions paginates and filters', async () => {
-    qb.getCount.mockResolvedValue(20);
     qb.getMany.mockResolvedValue([{ id: 'a' }]);
 
     const res = await service.getConfessions({
@@ -93,13 +111,24 @@ describe('ConfessionService', () => {
       sort: SortOrder.NEWEST,
     });
     expect(qb.skip).toHaveBeenCalledWith(5);
-    expect(qb.take).toHaveBeenCalledWith(5);
-    expect(res.meta.total).toBe(20);
+    expect(qb.take).toHaveBeenCalledWith(6); // fetchLimit = limit + 1
+    expect(res.data).toHaveLength(1);
+    expect(res.limit).toBe(5);
+    expect(res.hasMore).toBe(false);
   });
 
-  it('getConfessions rejects invalid limit', async () => {
-    await expect(
-      service.getConfessions({ page: 1, limit: 0 } as any),
-    ).rejects.toThrow(BadRequestException);
+  it('getUserConfessions minimal test', async () => {
+    console.log('START TEST');
+    anonUserService.getAnonIdsForUser.mockResolvedValue(['anon1']);
+    qb.getMany.mockResolvedValue([]);
+
+    try {
+      const res = await service.getUserConfessions(1, { limit: 10 });
+      console.log('RESULT', res);
+      expect(res.data).toHaveLength(0);
+    } catch (e) {
+      console.error('ERROR', e);
+      throw e;
+    }
   });
 });

@@ -25,7 +25,8 @@ export class InvokeContractDto {
   operation: StellarInvokeAllowedOperation;
 
   @ApiProperty({
-    description: '32-byte confession hash as 64 hex characters (anchor_confession only)',
+    description:
+      '32-byte confession hash as 64 hex characters (anchor_confession only)',
     required: false,
   })
   @ValidateIf((o: InvokeContractDto) => o.operation === 'anchor_confession')

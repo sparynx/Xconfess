@@ -32,8 +32,8 @@ export class JobManagementService {
   ) {}
 
   async listDlqJobs(page = 1, limit = 20, filter?: DlqJobFilter) {
-    const start = (page -1) * limit;
-    const end = start + limit -1;
+    const start = (page - 1) * limit;
+    const end = start + limit - 1;
 
     const jobs = await this.dlq.getJobs(
       ['failed', 'completed', 'waiting', 'active', 'delayed'],
@@ -43,8 +43,12 @@ export class JobManagementService {
     );
 
     const totalObj = await this.dlq.getJobCounts();
-    const totalCount = (totalObj as any).failed + (totalObj as any).completed +
-      (totalObj as any).waiting + (totalObj as any).active + (totalObj as any).delayed;
+    const totalCount =
+      (totalObj as any).failed +
+      (totalObj as any).completed +
+      (totalObj as any).waiting +
+      (totalObj as any).active +
+      (totalObj as any).delayed;
 
     // Apply filtering if provided (Bull's getJobs doesn't filter by payload/reason out of the box easily)
     let filteredJobs = jobs;
@@ -144,7 +148,7 @@ export class JobManagementService {
 
   async cleanupDlq(options: any) {
     // Ported logic from old NotificationQueue
-    await this.dlq.clean(1000 * 60 * 60 * 24 * 7, 'failed'); // 7 days
+    await this.dlq.clean(1000 * 60 * 60 * 24 * 7, 1000, 'failed'); // 7 days, max 1000
     return { cleaned: true };
   }
 

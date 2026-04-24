@@ -81,14 +81,19 @@ pub struct UpgradeCompatibilityPolicy {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfessionAnchoredEvent {
     #[topic]
-    pub hash: BytesN<32>,
+    pub content_hash: BytesN<32>,
+    pub event_version: u32,
+    pub nonce: u64,
     pub timestamp: u64,
     pub anchor_height: u32,
 }
 
-#[contractevent(topics = ["ver_check"], data_format = "vec")]
+#[contractevent(topics = ["version_compatibility_checked"], data_format = "vec")]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VersionCompatibilityCheckedEvent {
+    pub event_version: u32,
+    pub nonce: u64,
+    pub timestamp: u64,
     pub from_major: u32,
     pub from_minor: u32,
     pub from_patch: u32,
@@ -215,11 +220,13 @@ impl ConfessionAnchor {
         // topics: ("confession_anchor", hash)
         // data: (timestamp, anchor_height)
         ConfessionAnchoredEvent {
-            hash: hash.clone(),
-            timestamp,
-            anchor_height,
-        }
-        .publish(&env);
+              content_hash: hash.clone(),
+              event_version: events::CONFESSION_ANCHORED_EVENT_VERSION,
+              nonce: events::bump_nonce(env, &events::EventNonceKey::ConfessionAnchor(hash.clone())),
+              timestamp,
+              anchor_height,
+          }
+          .publish(&env);
 
         symbol_short!("anchored")
     }
@@ -328,15 +335,18 @@ impl ConfessionAnchor {
         let compatible = Self::can_upgrade_from(env.clone(), from_major, from_minor, from_patch);
 
         VersionCompatibilityCheckedEvent {
-            from_major,
-            from_minor,
-            from_patch,
-            to_major: CONTRACT_SEMVER_MAJOR,
-            to_minor: CONTRACT_SEMVER_MINOR,
-            to_patch: CONTRACT_SEMVER_PATCH,
-            compatible,
-        }
-        .publish(&env);
+              event_version: events::VERSION_COMPATIBILITY_CHECKED_EVENT_VERSION,
+              nonce: events::bump_nonce(env, &events::EventNonceKey::VersionCompatibilityCheck(from_major, from_minor, from_patch)),
+              timestamp: env.ledger().timestamp(),
+              from_major,
+              from_minor,
+              from_patch,
+              to_major: CONTRACT_SEMVER_MAJOR,
+              to_minor: CONTRACT_SEMVER_MINOR,
+              to_patch: CONTRACT_SEMVER_PATCH,
+              compatible,
+          }
+          .publish(&env);
 
         if compatible {
             Ok(())

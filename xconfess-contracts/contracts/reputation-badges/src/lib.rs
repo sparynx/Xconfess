@@ -6,6 +6,18 @@ use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, Address, Env, String, Symbol, Vec,
 };
 
+// Reputation Decay Policy Constants
+/// Epoch duration in seconds (7 days)
+pub const EPOCH_DURATION: u64 = 604_800;
+/// Decay rate per epoch (5% decay, meaning reputation retains 95% per epoch)
+pub const DECAY_RATE_NUMERATOR: i128 = 95;
+/// Denominator for decay rate calculation (95/100 = 0.95)
+pub const DECAY_RATE_DENOMINATOR: i128 = 100;
+/// Maximum number of epochs to apply in a single calculation (bounds gas costs)
+pub const MAX_EPOCHS_PER_CALCULATION: u32 = 52; // 1 year max
+/// Minimum reputation floor (reputation won't decay below this for positive rep)
+pub const REPUTATION_FLOOR: i128 = 0;
+
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -63,6 +75,12 @@ pub enum StorageKey {
     BadgeTypeMetadata(BadgeType),
     /// User reputation: StorageKey::UserReputation(user) -> i128
     UserReputation(Address),
+    /// Last reputation update timestamp: StorageKey::ReputationLastUpdate(user) -> u64
+    /// Used for decay calculation to track when reputation was last updated
+    ReputationLastUpdate(Address),
+    /// Global epoch index: StorageKey::CurrentEpoch -> u32
+    /// Incremented each time a global recalibration occurs
+    CurrentEpoch,
 }
 
 #[contracttype]
@@ -102,6 +120,17 @@ pub struct ReputationAdjustedData {
     pub timestamp: u64,
 }
 
+/// Event data for reputation decay
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReputationDecayedData {
+    pub user: Address,
+    pub old_reputation: i128,
+    pub new_reputation: i128,
+    pub epochs_applied: u32,
+    pub timestamp: u64,
+}
+
 #[contract]
 pub struct ReputationBadges;
 
@@ -116,6 +145,112 @@ fn get_admin(env: &Env) -> Result<Address, Error> {
 fn is_authorized(env: &Env, caller: &Address) -> Result<bool, Error> {
     let admin = get_admin(env)?;
     Ok(admin == *caller)
+}
+
+// Reputation decay helper functions
+
+/// Get the current epoch index based on ledger timestamp
+fn get_current_epoch(env: &Env) -> u32 {
+    // Use contract initialization time as epoch 0 reference
+    // For simplicity, we use a fixed reference timestamp (contract initialization)
+    // In production, this could be stored and updated via governance
+    let reference_timestamp: u64 = 0; // Epoch 0 starts at timestamp 0
+    let current_timestamp = env.ledger().timestamp();
+    ((current_timestamp - reference_timestamp) / EPOCH_DURATION) as u32
+}
+
+/// Calculate decayed reputation based on elapsed epochs
+/// Uses bounded iteration to limit gas costs (max MAX_EPOCHS_PER_CALCULATION epochs)
+fn calculate_decayed_reputation(reputation: i128, epochs_elapsed: u32) -> i128 {
+    if epochs_elapsed == 0 || reputation == 0 {
+        return reputation;
+    }
+
+    // Bound the number of epochs to apply for gas cost control
+    let epochs_to_apply = core::cmp::min(epochs_elapsed, MAX_EPOCHS_PER_CALCULATION);
+
+    let mut result = reputation;
+    for _ in 0..epochs_to_apply {
+        // Apply decay: result = result * DECAY_RATE_NUMERATOR / DECAY_RATE_DENOMINATOR
+        result = (result * DECAY_RATE_NUMERATOR) / DECAY_RATE_DENOMINATOR;
+
+        // Stop if we hit the floor (for positive reputation)
+        if result <= REPUTATION_FLOOR && reputation > 0 {
+            return REPUTATION_FLOOR;
+        }
+
+        // For negative reputation, apply decay in opposite direction (become less negative)
+        // Negative reputation decays towards 0 as well
+    }
+
+    result
+}
+
+/// Apply reputation decay for a user and update their last update timestamp
+/// Returns the new reputation after decay
+fn apply_reputation_decay(env: &Env, user: &Address) -> i128 {
+    let current_reputation = env
+        .storage()
+        .persistent()
+        .get(&StorageKey::UserReputation(user.clone()))
+        .unwrap_or(0i128);
+
+    let last_update_key = StorageKey::ReputationLastUpdate(user.clone());
+    let last_update: u64 = env
+        .storage()
+        .persistent()
+        .get(&last_update_key)
+        .unwrap_or(0u64);
+
+    let current_timestamp = env.ledger().timestamp();
+
+    // Calculate epochs elapsed
+    let time_elapsed = if current_timestamp > last_update {
+        current_timestamp - last_update
+    } else {
+        0
+    };
+
+    let epochs_elapsed = (time_elapsed / EPOCH_DURATION) as u32;
+
+    if epochs_elapsed == 0 {
+        return current_reputation;
+    }
+
+    // Calculate decayed reputation
+    let new_reputation = calculate_decayed_reputation(current_reputation, epochs_elapsed);
+
+    // Update storage if reputation changed
+    if new_reputation != current_reputation {
+        env.storage()
+            .persistent()
+            .set(&StorageKey::UserReputation(user.clone()), &new_reputation);
+    }
+
+    // Always update the last update timestamp to current time
+    env.storage()
+        .persistent()
+        .set(&last_update_key, &current_timestamp);
+
+    new_reputation
+}
+
+/// Get user reputation with decay applied
+fn get_user_reputation_with_decay(env: &Env, user: &Address) -> i128 {
+    apply_reputation_decay(env, user)
+}
+
+/// Update reputation and reset the decay timer (called when reputation is explicitly changed)
+fn update_reputation_and_reset_timer(env: &Env, user: &Address, new_reputation: i128) {
+    env.storage()
+        .persistent()
+        .set(&StorageKey::UserReputation(user.clone()), &new_reputation);
+
+    // Reset the last update timestamp to current time
+    let last_update_key = StorageKey::ReputationLastUpdate(user.clone());
+    env.storage()
+        .persistent()
+        .set(&last_update_key, &env.ledger().timestamp());
 }
 
 #[contractimpl]
@@ -255,6 +390,7 @@ impl ReputationBadges {
     }
 
     /// Adjust user reputation (admin only)
+    /// This also resets the decay timer for the user
     pub fn adjust_reputation(
         env: Env,
         user: Address,
@@ -264,18 +400,18 @@ impl ReputationBadges {
         let admin = get_admin(&env)?;
         admin.require_auth();
 
-        let current_reputation = Self::get_user_reputation_internal(&env, &user);
+        // Get current reputation with decay applied
+        let current_reputation = get_user_reputation_with_decay(&env, &user);
         let new_reputation = current_reputation + amount;
 
-        env.storage()
-            .persistent()
-            .set(&StorageKey::UserReputation(user.clone()), &new_reputation);
+        // Update reputation and reset timer
+        update_reputation_and_reset_timer(&env, &user, new_reputation);
 
         let event_topic = Symbol::new(&env, "reputation_adjusted");
         env.events().publish(
             (event_topic, user.clone()),
             ReputationAdjustedData {
-                user,
+                user: user.clone(),
                 amount,
                 reason,
                 timestamp: env.ledger().timestamp(),
@@ -285,9 +421,73 @@ impl ReputationBadges {
         Ok(new_reputation)
     }
 
-    /// Get user reputation
+    /// Get user reputation with decay applied
+    /// This will automatically apply any pending decay before returning
     pub fn get_user_reputation(env: Env, user: Address) -> i128 {
-        Self::get_user_reputation_internal(&env, &user)
+        get_user_reputation_with_decay(&env, &user)
+    }
+
+    /// Explicitly apply reputation decay for a user
+    /// Can be called by anyone to update a user's reputation (gas-efficient)
+    /// Returns the new reputation after decay is applied
+    pub fn apply_decay(env: Env, user: Address) -> i128 {
+        let current_reputation = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::UserReputation(user.clone()))
+            .unwrap_or(0i128);
+
+        let last_update_key = StorageKey::ReputationLastUpdate(user.clone());
+        let last_update: u64 = env
+            .storage()
+            .persistent()
+            .get(&last_update_key)
+            .unwrap_or(0u64);
+
+        let current_timestamp = env.ledger().timestamp();
+
+        // Calculate epochs elapsed
+        let time_elapsed = if current_timestamp > last_update {
+            current_timestamp - last_update
+        } else {
+            0
+        };
+
+        let epochs_elapsed = (time_elapsed / EPOCH_DURATION) as u32;
+
+        if epochs_elapsed == 0 {
+            return current_reputation;
+        }
+
+        // Calculate decayed reputation
+        let new_reputation = calculate_decayed_reputation(current_reputation, epochs_elapsed);
+
+        // Update storage if reputation changed
+        if new_reputation != current_reputation {
+            env.storage()
+                .persistent()
+                .set(&StorageKey::UserReputation(user.clone()), &new_reputation);
+
+            // Emit decay event
+            let event_topic = Symbol::new(&env, "reputation_decayed");
+            env.events().publish(
+                (event_topic, user.clone()),
+                ReputationDecayedData {
+                    user: user.clone(),
+                    old_reputation: current_reputation,
+                    new_reputation,
+                    epochs_applied: epochs_elapsed,
+                    timestamp: current_timestamp,
+                },
+            );
+        }
+
+        // Always update the last update timestamp to current time
+        env.storage()
+            .persistent()
+            .set(&last_update_key, &current_timestamp);
+
+        new_reputation
     }
 
     /// Mint a new badge for a recipient (self-service)
@@ -548,12 +748,63 @@ impl ReputationBadges {
             .unwrap_or(0u64)
     }
 
-    // Internal helper to get user reputation
+    // Internal helper to get user reputation (without decay)
+    // This is kept for backward compatibility but new code should use get_user_reputation_with_decay
     fn get_user_reputation_internal(env: &Env, user: &Address) -> i128 {
         env.storage()
             .persistent()
             .get(&StorageKey::UserReputation(user.clone()))
             .unwrap_or(0i128)
+    }
+
+    /// Global epoch recalibration (admin only)
+    /// Applies decay to all active users by incrementing the global epoch
+    /// This is a bounded operation - processes a batch of user addresses provided
+    /// Returns the number of users whose reputation was updated
+    pub fn recalibrate_epoch(
+        env: Env,
+        user_batch: Vec<Address>,
+    ) -> Result<u32, Error> {
+        let admin = get_admin(&env)?;
+        admin.require_auth();
+
+        let mut updated_count: u32 = 0;
+
+        for i in 0..user_batch.len() {
+            if let Some(user) = user_batch.get(i) {
+                let old_rep = env
+                    .storage()
+                    .persistent()
+                    .get(&StorageKey::UserReputation(user.clone()))
+                    .unwrap_or(0i128);
+
+                // Apply decay for this user
+                let new_rep = apply_reputation_decay(&env, &user);
+
+                if old_rep != new_rep {
+                    updated_count += 1;
+                }
+            }
+        }
+
+        // Increment global epoch
+        let current_epoch_key = StorageKey::CurrentEpoch;
+        let current_epoch: u32 = env
+            .storage()
+            .persistent()
+            .get(&current_epoch_key)
+            .unwrap_or(0u32);
+        env.storage()
+            .persistent()
+            .set(&current_epoch_key, &(current_epoch + 1));
+
+        let event_topic = Symbol::new(&env, "epoch_recalibrated");
+        env.events().publish(
+            (event_topic, admin),
+            (current_epoch + 1, updated_count),
+        );
+
+        Ok(updated_count)
     }
 }
 #[cfg(test)]

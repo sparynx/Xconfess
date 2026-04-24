@@ -440,3 +440,321 @@ fn test_mint_and_award_can_coexist() {
     assert_eq!(award_id, 2);
     assert_eq!(client.get_badge_count(&user), 2);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reputation Decay Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_reputation_decay_basic() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set initial reputation
+    client.adjust_reputation(&user, &1000i128, &String::from_str(&env, "initial"));
+
+    // Verify initial reputation
+    assert_eq!(client.get_user_reputation(&user), 1000);
+
+    // Simulate time passing (1 epoch = 604800 seconds)
+    let epoch_duration = 604_800u64;
+    env.ledger().set_timestamp(epoch_duration);
+
+    // Get reputation - should apply decay (5% decay = 95% remains)
+    // 1000 * 0.95 = 950
+    let rep_after_1_epoch = client.get_user_reputation(&user);
+    assert_eq!(rep_after_1_epoch, 950); // 1000 * 95 / 100
+}
+
+#[test]
+fn test_reputation_decay_zero_epochs() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set initial reputation
+    client.adjust_reputation(&user, &1000i128, &String::from_str(&env, "initial"));
+
+    // Get reputation immediately - no time passed
+    let rep = client.get_user_reputation(&user);
+    assert_eq!(rep, 1000); // No decay applied
+}
+
+#[test]
+fn test_reputation_decay_multiple_epochs() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set initial reputation
+    client.adjust_reputation(&user, &1000i128, &String::from_str(&env, "initial"));
+
+    // Simulate 3 epochs passing
+    let epoch_duration = 604_800u64;
+    env.ledger().set_timestamp(3 * epoch_duration);
+
+    // Get reputation - should apply decay for 3 epochs
+    // 1000 * 0.95^3 = 1000 * 0.857375 = 857.375 -> 857 (integer division)
+    // Actually: (((1000 * 95) / 100) = 950) -> ((950 * 95) / 100) = 902 -> ((902 * 95) / 100) = 856
+    let rep_after_3_epochs = client.get_user_reputation(&user);
+    assert_eq!(rep_after_3_epochs, 856);
+}
+
+#[test]
+fn test_reputation_decay_floor() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set small reputation
+    client.adjust_reputation(&user, &10i128, &String::from_str(&env, "initial"));
+
+    // Simulate many epochs passing (reputation should decay to 0)
+    let epoch_duration = 604_800u64;
+    env.ledger().set_timestamp(100 * epoch_duration); // 100 epochs
+
+    // Get reputation - should be 0 (floor)
+    let rep = client.get_user_reputation(&user);
+    assert_eq!(rep, 0);
+}
+
+#[test]
+fn test_reputation_decay_negative() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set negative reputation
+    client.adjust_reputation(&user, &-1000i128, &String::from_str(&env, "penalty"));
+
+    // Simulate 1 epoch passing
+    let epoch_duration = 604_800u64;
+    env.ledger().set_timestamp(epoch_duration);
+
+    // Get reputation - negative reputation also decays (becomes less negative)
+    // -1000 * 0.95 = -950
+    let rep = client.get_user_reputation(&user);
+    assert_eq!(rep, -950);
+}
+
+#[test]
+fn test_apply_decay_explicit() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set initial reputation
+    client.adjust_reputation(&user, &1000i128, &String::from_str(&env, "initial"));
+
+    // Simulate time passing
+    let epoch_duration = 604_800u64;
+    env.ledger().set_timestamp(epoch_duration);
+
+    // Explicitly apply decay
+    let rep = client.apply_decay(&user);
+    assert_eq!(rep, 950);
+
+    // Verify reputation was updated in storage
+    assert_eq!(client.get_user_reputation(&user), 950);
+}
+
+#[test]
+fn test_adjust_reputation_resets_timer() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set initial reputation
+    client.adjust_reputation(&user, &1000i128, &String::from_str(&env, "initial"));
+
+    // Simulate 1 epoch passing
+    let epoch_duration = 604_800u64;
+    env.ledger().set_timestamp(epoch_duration);
+
+    // Adjust reputation (should reset timer)
+    client.adjust_reputation(&user, &100i128, &String::from_str(&env, "bonus"));
+
+    // Get reputation immediately after adjustment - should be 1100 (1000 + 100, no decay because timer reset)
+    let rep = client.get_user_reputation(&user);
+    assert_eq!(rep, 1100);
+}
+
+#[test]
+fn test_reputation_decay_bounded() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set initial reputation
+    client.adjust_reputation(&user, &1000i128, &String::from_str(&env, "initial"));
+
+    // Simulate a very long time passing (beyond MAX_EPOCHS_PER_CALCULATION = 52)
+    let epoch_duration = 604_800u64;
+    env.ledger().set_timestamp(100 * epoch_duration); // 100 epochs
+
+    // Get reputation - should only apply 52 epochs max
+    // This ensures gas costs are bounded
+    let rep = client.get_user_reputation(&user);
+
+    // After 52 epochs: 1000 * 0.95^52 ≈ 1000 * 0.069 = 69
+    // But we need to calculate exactly:
+    // Each epoch: rep = rep * 95 / 100
+    // After 52 epochs, the value should be bounded
+    assert!(rep >= 0);
+    assert!(rep <= 1000);
+}
+
+#[test]
+fn test_recalibrate_epoch() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set reputations
+    client.adjust_reputation(&user1, &1000i128, &String::from_str(&env, "initial"));
+    client.adjust_reputation(&user2, &2000i128, &String::from_str(&env, "initial"));
+
+    // Simulate 2 epochs passing
+    let epoch_duration = 604_800u64;
+    env.ledger().set_timestamp(2 * epoch_duration);
+
+    // Recalibrate epoch with batch of users
+    let mut batch = Vec::new(&env);
+    batch.push_back(user1.clone());
+    batch.push_back(user2.clone());
+
+    let updated = client.recalibrate_epoch(&batch);
+    assert_eq!(updated, 2);
+
+    // Verify reputations were updated
+    // user1: 1000 * 0.95^2 = 902
+    // user2: 2000 * 0.95^2 = 1804
+    assert_eq!(client.get_user_reputation(&user1), 902);
+    assert_eq!(client.get_user_reputation(&user2), 1804);
+}
+
+#[test]
+fn test_reputation_decay_fairness_multiple_users() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set different reputations
+    client.adjust_reputation(&user1, &1000i128, &String::from_str(&env, "initial"));
+    client.adjust_reputation(&user2, &500i128, &String::from_str(&env, "initial"));
+
+    // Simulate time passing
+    let epoch_duration = 604_800u64;
+    env.ledger().set_timestamp(epoch_duration);
+
+    // Both users should have their reputation decayed proportionally
+    let rep1 = client.get_user_reputation(&user1);
+    let rep2 = client.get_user_reputation(&user2);
+
+    // user1: 1000 * 0.95 = 950
+    // user2: 500 * 0.95 = 475
+    assert_eq!(rep1, 950);
+    assert_eq!(rep2, 475);
+
+    // Verify proportional decay (both lost 5% of their reputation)
+    assert_eq!(rep1, 950);
+    assert_eq!(rep2, 475);
+}
+
+#[test]
+fn test_reputation_no_decay_when_active() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    // Set initial reputation
+    client.adjust_reputation(&user, &1000i128, &String::from_str(&env, "initial"));
+
+    // Simulate some time passing
+    let epoch_duration = 604_800u64;
+    env.ledger().set_timestamp(epoch_duration / 2); // Half an epoch
+
+    // Get reputation - should NOT decay (less than 1 epoch)
+    let rep = client.get_user_reputation(&user);
+    assert_eq!(rep, 1000);
+}

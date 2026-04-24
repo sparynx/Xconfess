@@ -53,7 +53,12 @@ export class Report {
   @Column({ type: 'text', nullable: true })
   note: string | null;
 
-  @Column({ name: 'idempotency_key', type: 'varchar', length: 64, unique: true })
+  @Column({
+    name: 'idempotency_key',
+    type: 'varchar',
+    length: 64,
+    unique: true,
+  })
   idempotencyKey: string;
 
   @Column({ name: 'idempotency_response', type: 'jsonb', nullable: true })

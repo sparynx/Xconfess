@@ -230,7 +230,9 @@ export class MessagesService {
       ]);
 
     if (query.cursor) {
-      const parsedCursor = decodeCursor<{ id: string; lastMessageAt: string }>(query.cursor);
+      const parsedCursor = decodeCursor<{ id: string; lastMessageAt: string }>(
+        query.cursor,
+      );
       if (parsedCursor) {
         qb.andWhere('m.createdAt < :cursorDate', {
           cursorDate: parsedCursor.lastMessageAt,

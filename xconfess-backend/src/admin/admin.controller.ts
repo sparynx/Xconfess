@@ -318,8 +318,8 @@ export class AdminController {
     @Query('offset') offset?: string,
   ) {
     const result = await this.auditLogService.findAll({
-      adminId,
-      action: parseAuditAction(action),
+      userId: adminId,
+      actionType: parseAuditAction(action),
       entityType,
       entityId,
       requestId,

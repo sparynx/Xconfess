@@ -30,8 +30,7 @@ describe('StellarController authz', () => {
   let SIGNER_SECRET: string;
   let SIGNER_PUBLIC: string;
 
-  const VALID_HASH =
-    'a'.repeat(64);
+  const VALID_HASH = 'a'.repeat(64);
 
   const makePayload = (opts: {
     sub: number;
@@ -163,9 +162,9 @@ describe('StellarController authz', () => {
       .send(allowlistedBody());
 
     expect([200, 201]).toContain(res.status);
-    expect(contractServiceMock.invocationFromAllowlistedDto).toHaveBeenCalledTimes(
-      1,
-    );
+    expect(
+      contractServiceMock.invocationFromAllowlistedDto,
+    ).toHaveBeenCalledTimes(1);
     expect(contractServiceMock.invokeContract).toHaveBeenCalledTimes(1);
     expect(res.body).toHaveProperty('hash', 'tx-hash');
     expect(auditLogMock.log).toHaveBeenCalledWith(

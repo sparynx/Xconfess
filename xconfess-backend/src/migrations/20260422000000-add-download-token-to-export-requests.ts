@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddDownloadTokenToExportRequests20260422000000
-  implements MigrationInterface
-{
+export class AddDownloadTokenToExportRequests20260422000000 implements MigrationInterface {
   name = 'AddDownloadTokenToExportRequests20260422000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

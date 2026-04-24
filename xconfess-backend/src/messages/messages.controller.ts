@@ -17,15 +17,9 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { MessagesService } from './messages.service';
-import {
-  CreateMessageDto,
-  ReplyMessageDto,
-} from './dto/message.dto';
+import { CreateMessageDto, ReplyMessageDto } from './dto/message.dto';
 import { GetMessagesQueryDto } from './dto/get-messages-query.dto';
-import {
-  encodeCursor,
-  CursorPaginatedResponseDto,
-} from '../common/pagination';
+import { encodeCursor, CursorPaginatedResponseDto } from '../common/pagination';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
 import { User } from '../user/entities/user.entity';
@@ -70,10 +64,7 @@ export class MessagesController {
     summary: 'Get all message threads for the authenticated user',
   })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  async getThreads(
-    @Query() query: GetMessagesQueryDto,
-    @GetUser() user: User,
-  ) {
+  async getThreads(@Query() query: GetMessagesQueryDto, @GetUser() user: User) {
     return this.messagesService.findAllThreadsForUser(user, query);
   }
 

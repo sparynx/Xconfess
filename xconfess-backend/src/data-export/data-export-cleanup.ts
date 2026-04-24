@@ -22,10 +22,14 @@ export class DataCleanupService {
     private readonly configService: ConfigService,
     private readonly auditLogService: AuditLogService,
   ) {
-    this.retentionDays =
-      this.configService.get<number>('export.retentionDays', 7);
-    this.auditCleanupActions =
-      this.configService.get<boolean>('export.auditCleanupActions', true);
+    this.retentionDays = this.configService.get<number>(
+      'export.retentionDays',
+      7,
+    );
+    this.auditCleanupActions = this.configService.get<boolean>(
+      'export.auditCleanupActions',
+      true,
+    );
   }
 
   private getRetentionCutoff(): Date {
@@ -56,7 +60,10 @@ export class DataCleanupService {
       }
 
       const result = await this.repo.update(
-        { createdAt: LessThan(cutoff), status: In(['PENDING', 'PROCESSING', 'READY', 'FAILED']) },
+        {
+          createdAt: LessThan(cutoff),
+          status: In(['PENDING', 'PROCESSING', 'READY', 'FAILED']),
+        },
         { fileData: null, status: 'EXPIRED', expiredAt: new Date() },
       );
 

@@ -20,15 +20,11 @@ describe('DLQ Security (e2e)', () => {
 
   describe('Legacy DLQ endpoints should require authentication and admin authorization', () => {
     it('GET /admin/dlq should return 401 without auth', () => {
-      return request(app.getHttpServer())
-        .get('/admin/dlq')
-        .expect(401);
+      return request(app.getHttpServer()).get('/admin/dlq').expect(401);
     });
 
     it('GET /admin/dlq/:id should return 401 without auth', () => {
-      return request(app.getHttpServer())
-        .get('/admin/dlq/123')
-        .expect(401);
+      return request(app.getHttpServer()).get('/admin/dlq/123').expect(401);
     });
 
     it('POST /admin/dlq/:id/retry should return 401 without auth', () => {
@@ -38,15 +34,11 @@ describe('DLQ Security (e2e)', () => {
     });
 
     it('DELETE /admin/dlq/:id should return 401 without auth', () => {
-      return request(app.getHttpServer())
-        .delete('/admin/dlq/123')
-        .expect(401);
+      return request(app.getHttpServer()).delete('/admin/dlq/123').expect(401);
     });
 
     it('DELETE /admin/dlq should return 401 without auth', () => {
-      return request(app.getHttpServer())
-        .delete('/admin/dlq')
-        .expect(401);
+      return request(app.getHttpServer()).delete('/admin/dlq').expect(401);
     });
   });
 

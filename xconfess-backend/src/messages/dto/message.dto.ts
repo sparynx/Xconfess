@@ -28,5 +28,3 @@ export class ReplyMessageDto {
   @MaxLength(1000)
   reply: string;
 }
-
-

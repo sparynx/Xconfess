@@ -24,8 +24,6 @@ export class ModerationService {
   ): Promise<AuditLog> {
     const requestId = (request as any)?.requestId || null;
 
-    const requestId = (request as any)?.requestId || null;
-
     const auditLog = this.auditLogRepository.create({
       adminId,
       action,
