@@ -18,6 +18,7 @@ mod adversarial {
 
     fn setup() -> (Env, Address) {
         let env = Env::default();
+        env.mock_all_auths();
         let contract_id = env.register(AnonymousTipping, ());
         AnonymousTippingClient::new(&env, &contract_id).init();
         (env, contract_id)
@@ -390,5 +391,39 @@ mod adversarial {
         let sid = c.send_tip(&recipient, &max_amount);
         assert_eq!(sid, 1);
         assert_eq!(c.get_tips(&recipient), max_amount);
+    }
+
+    #[test]
+    fn pause_blocks_state_changing_tip_calls() {
+        let (env, id) = setup();
+        let c = mk_client(&env, &id);
+        let owner = Address::generate(&env);
+        let recipient = Address::generate(&env);
+
+        c.configure_controls(&owner, &5, &60);
+        c.pause(&owner, &SorobanString::from_str(&env, "incident"));
+        assert!(c.is_paused());
+        assert_eq!(
+            c.try_send_tip(&recipient, &1),
+            Err(Ok(Error::ContractPaused))
+        );
+
+        c.unpause(&owner, &SorobanString::from_str(&env, "resolved"));
+        assert!(!c.is_paused());
+        assert_eq!(c.send_tip(&recipient, &2), 1);
+    }
+
+    #[test]
+    fn per_wallet_rate_limit_throttles_predictably() {
+        let (env, id) = setup();
+        let c = mk_client(&env, &id);
+        let owner = Address::generate(&env);
+        let recipient = Address::generate(&env);
+
+        c.configure_controls(&owner, &2, &60);
+
+        assert_eq!(c.send_tip(&recipient, &1), 1);
+        assert_eq!(c.send_tip(&recipient, &1), 2);
+        assert_eq!(c.try_send_tip(&recipient, &1), Err(Ok(Error::RateLimited)));
     }
 }
