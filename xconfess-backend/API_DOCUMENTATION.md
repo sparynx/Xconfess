@@ -10,6 +10,42 @@ All HTTP routes are served under the global prefix:
 
 Example: `POST /auth/login` in code is reachable at `POST /api/auth/login`.
 
+## Error Handling
+
+The API uses standardized error codes and a consistent response shape for all modules.
+
+### Response Shape
+
+All non-2xx responses follow this structure:
+
+```json
+{
+  "status": number,
+  "code": "ERROR_CODE_STRING",
+  "message": "Human readable message",
+  "details": any,
+  "timestamp": "ISO-8601",
+  "path": "/api/...",
+  "requestId": "uuid"
+}
+```
+
+### Global Error Codes
+
+| Code | Description |
+|---|---|
+| `AUTH_UNAUTHORIZED` | Authentication required or failed. |
+| `AUTH_FORBIDDEN` | Insufficient permissions. |
+| `BAD_REQUEST` | Generic client error. |
+| `VALIDATION_FAILED` | Input validation failed. |
+| `NOT_FOUND` | Resource not found. |
+| `CONFLICT` | Resource state conflict. |
+| `THROTTLED` | Rate limit exceeded. |
+| `STELLAR_ERROR` | Error communicating with Stellar/Soroban. |
+| `INTERNAL_SERVER_ERROR` | Unexpected server error. |
+
+Refer to `src/common/errors/error-codes.ts` for the full catalog.
+
 ## Authentication and Authorization
 
 ### Auth split: `/users/*` vs `/auth/*`
